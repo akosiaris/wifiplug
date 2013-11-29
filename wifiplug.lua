@@ -45,7 +45,7 @@ function decrypt(c, k)
 	-- Remove possible padding
 	last = string.match(p, '.$')
 	last = string.byte(last)
-	if last > 0 and last < 8 then
+	if last > 0 and last <= 8 then
 		local pattern = ''
 		for i=1,last do
 			pattern = pattern..string.char(last)
@@ -99,6 +99,14 @@ function extract_session_key(s)
 	end
 end
 
+function canonicalize_mac(mac)
+	-- ugly ugly, either lua is crappy or my knowledge of it that bad (probably the latter)
+	return string.gsub(mac,
+	'([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])',
+	'%1:%2:%3:%4:%5:%6')
+
+end
+
 -- Populate tree
 function populate_tree(s, t, b)
 -- Let's see if it is json first
@@ -107,33 +115,33 @@ function populate_tree(s, t, b)
 		maclist = t:add(b(), 'MAC list')
 		for i,mac in pairs(obj.macList) do
 			mact = maclist:add(b(), 'MAC')
-			mact:add(b(), 'Id:'             ..mac.Id)
-			mact:add(b(), 'Mac Address:'        ..mac.MacAddr)
-			mact:add(b(), 'Major Type:'      ..mac.MajorType)
-			mact:add(b(), 'Minor Type:'      ..mac.MinorType)
-			mact:add(b(), 'Name:'           ..mac.Name)
-			mact:add(b(), 'Remark:'         ..mac.Remark)
-			mact:add(b(), 'Status:'         ..tostring(mac.Status))
-			mact:add(b(), 'Switcher:'       ..mac.Switcher)
-			mact:add(b(), 'Switcher Count:'  ..mac.SwitcherCount)
-			mact:add(b(), 'SwitcherName:'   ..mac.SwitcherName)
-			mact:add(b(), 'Switcher Value1:' ..mac.SwitcherValue1)
-			mact:add(b(), 'Switcher Value2:' ..mac.SwitcherValue2)
-			mact:add(b(), 'Switcher Value3:' ..mac.SwitcherValue3)
-			mact:add(b(), 'Switcher Value4:' ..mac.SwitcherValue4)
-			mact:add(b(), 'Switcher Value5:' ..mac.SwitcherValue5)
-			mact:add(b(), 'Update Time:'     ..mac.UpdateTime)
+			mact:add(b(), 'Id: '             ..mac.Id)
+			mact:add(b(), 'Mac Address: '        ..canonicalize_mac(mac.MacAddr)):set_generated()
+			mact:add(b(), 'Major Type: '      ..mac.MajorType)
+			mact:add(b(), 'Minor Type: '      ..mac.MinorType)
+			mact:add(b(), 'Name: '           ..mac.Name)
+			mact:add(b(), 'Remark: '         ..mac.Remark)
+			mact:add(b(), 'Status: '         ..tostring(mac.Status))
+			mact:add(b(), 'Switcher: '       ..mac.Switcher)
+			mact:add(b(), 'Switcher Count: '  ..mac.SwitcherCount)
+			mact:add(b(), 'Switcher Name: '   ..mac.SwitcherName)
+			mact:add(b(), 'Switcher Value1: ' ..mac.SwitcherValue1)
+			mact:add(b(), 'Switcher Value2: ' ..mac.SwitcherValue2)
+			mact:add(b(), 'Switcher Value3: ' ..mac.SwitcherValue3)
+			mact:add(b(), 'Switcher Value4: ' ..mac.SwitcherValue4)
+			mact:add(b(), 'Switcher Value5: ' ..mac.SwitcherValue5)
+			mact:add(b(), 'Update Time: '     ..os.date("%Y-%m-%d %H:%M", mac.UpdateTime)):set_generated()
 		end
 		timerlist = t:add(b(), 'Timer list')
 		for i,timer in pairs(obj.timerList) do
 			timert = timerlist:add(b(), 'Timer')
-			timert:add(b(), 'Id:'         ..timer.Id)
-			timert:add(b(), 'MAC Id:'      ..timer.MacId)
+			timert:add(b(), 'Id: '         ..timer.Id)
+			timert:add(b(), 'MAC Id: '      ..timer.MacId)
 			timert:add(b(), 'One Switcher:'..timer.OneSwitcher)
-			timert:add(b(), 'Remark:'     ..timer.Remark)
+			timert:add(b(), 'Remark: '     ..timer.Remark)
 			timert:add(b(), 'Switcher Num:'..timer.SwitcherNum)
-			timert:add(b(), 'Timer:'      ..timer.Timer)
-			timert:add(b(), 'Timer Type:'  ..timer.TimerType)
+			timert:add(b(), 'Timer: '      ..timer.Timer)
+			timert:add(b(), 'Timer Type: '  ..timer.TimerType)
 		end
 	else
 		local parts = split(s, ",")
