@@ -88,7 +88,7 @@ function detect_correct_decryption(s)
 end
 
 function extract_session_key(s)
-	if string.match(s, '^BBBB%+OK') then
+	if string.match(s, '^BBBB%+OK 1') then
 		local parts = split(s, " ")
 		k = parts[#parts]
 		k = string.gsub(k, 'E+$', '')
@@ -147,17 +147,27 @@ function populate_tree(s, t, b)
 		local parts = split(s, ",")
 		for i,v in pairs(parts) do
 			v = string.gsub(v, 'E+$', '')
-			st = t:add(b(), 'Unidentified yet data')
+			st = t:add(b(), 'Unidentified yet data'..v)
 			detect(i, v, st, b)
 		end
 	end
 end
 
 -- Detect parts of the packet
+-- I have not written such ugly code in a long time
 function detect(i, v, subtree, b)
 	if v == 'BBBB1' then
 		subtree:set_generated()
 		subtree:set_text('Command: Login')
+	elseif string.match(v, '^BBBB5') then
+		subtree:set_generated()
+		subtree:set_text('Command: Idle (maybe?): ' .. v)
+	elseif string.match(v, '^BBBB%+OK 1') then
+		subtree:set_generated()
+		subtree:set_text('Response: successful Login: ' .. v)
+	elseif string.match(v, '^BBBB%+OK 5') then
+		subtree:set_generated()
+		subtree:set_text('Response: Idle OK (maybe?): ' .. v)
 	elseif i == 2 then
 		subtree:set_text("Username: " .. v)
 	elseif i == 3 then
