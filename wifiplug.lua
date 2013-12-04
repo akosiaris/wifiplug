@@ -1,60 +1,9 @@
 -- wifiplug android app protocol
-openssl = require("openssl")
-json = require("dkjson")
-sessionkey = ''
-des3ecb = openssl.get_cipher('des-ede3')
+require('wifiplug_common')
 -- declare out protocol
 wifiplug_proto = Proto("wifiplug", "wifiplug android app protocol")
 -- Yes this is the master 3DES key used to authenticate users and negotiate 3DES session keys. Secure heh ?
 wifiplug_proto.prefs.masterkey = Pref.string('masterkey', '""OX'..string.char(0x88)..'8(%%yQ'..string.char(0xcb)..'0@6(3)'..string.char(0x11)..'KD'..string.char(0xfe)..'vh', 'Wifiplugs master key')
--- helper functions
--- Compatibility: Lua-5.1
-function split(str, pat)
-   local t = {}  -- NOTE: use {n = 0} in Lua-5.0
-   local fpat = "(.-)" .. pat
-   local last_end = 1
-   local s, e, cap = str:find(fpat, 1)
-   while s do
-      if s ~= 1 or cap ~= "" then
-	 table.insert(t,cap)
-      end
-      last_end = e+1
-      s, e, cap = str:find(fpat, last_end)
-   end
-   if last_end <= #str then
-      cap = str:sub(last_end)
-      table.insert(t, cap)
-   end
-   return t
-end
-
-function string.fromhex(str)
-    return (str:gsub('..', function (cc)
-        return string.char(tonumber(cc, 16))
-    end))
-end
-
-function decrypt(c, k)
-	iv = ''
-	local c1 = des3ecb:init(false, k, iv)
-	local p = c1:update(string.fromhex(c))
-	local final = c1:final()
-	if final then
-		p = plaintext..final
-	end
-	-- Remove possible padding
-	last = string.match(p, '.$')
-	last = string.byte(last)
-	if last > 0 and last <= 8 then
-		local pattern = ''
-		for i=1,last do
-			pattern = pattern..string.char(last)
-		end
-		p = string.gsub(p, pattern..'$', '')
-	end
-	return p
-end
-
 function wifiplug_proto.dissector(buffer, pinfo, tree)
 	pinfo.cols.protocol = "WIFIPLUG"
 	local subtree = tree:add(wifiplug_proto, buffer(), "Wifiplug Protocol Data")
@@ -80,33 +29,6 @@ function wifiplug_proto.dissector(buffer, pinfo, tree)
 	populate_tree(plaintext, subtree, buffer)
 end
 
-function detect_correct_decryption(s)
-	if string.match(s, '^B+') then
-		return true
-	end
-	return false
-end
-
-function extract_session_key(s)
-	if string.match(s, '^BBBB%+OK 1') then
-		local parts = split(s, " ")
-		k = parts[#parts]
-		k = string.gsub(k, 'E+$', '')
-		k = string.fromhex(k)
-		return k
-	else
-		return nil
-	end
-end
-
-function canonicalize_mac(mac)
-	-- ugly ugly, either lua is crappy or my knowledge of it that bad (probably the latter)
-	return string.gsub(mac,
-	'([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])',
-	'%1:%2:%3:%4:%5:%6')
-
-end
-
 -- Populate tree
 function populate_tree(s, t, b)
 -- Let's see if it is json first
@@ -130,7 +52,7 @@ function populate_tree(s, t, b)
 			mact:add(b(), 'Switcher Value3: ' ..mac.SwitcherValue3)
 			mact:add(b(), 'Switcher Value4: ' ..mac.SwitcherValue4)
 			mact:add(b(), 'Switcher Value5: ' ..mac.SwitcherValue5)
-			mact:add(b(), 'Update Time: '     ..os.date("%Y-%m-%d %H:%M", mac.UpdateTime)):set_generated()
+			mact:add(b(), 'Update Time: '     ..os.date("%Y-%m-%d %H:%M", mac.UpdateTime/1000)):set_generated()
 		end
 		timerlist = t:add(b(), 'Timer list')
 		for i,timer in pairs(obj.timerList) do
@@ -144,9 +66,9 @@ function populate_tree(s, t, b)
 			timert:add(b(), 'Timer Type: '  ..timer.TimerType)
 		end
 	else
+		s = string.gsub(s, '^BBBB(.*)EEEE$', '%1')
 		local parts = split(s, ",")
 		for i,v in pairs(parts) do
-			v = string.gsub(v, 'E+$', '')
 			st = t:add(b(), 'Unidentified yet data'..v)
 			detect(i, v, st, b)
 		end
@@ -159,15 +81,15 @@ function detect(i, v, subtree, b)
 	if v == 'BBBB1' then
 		subtree:set_generated()
 		subtree:set_text('Command: Login')
-	elseif string.match(v, '^BBBB5') then
+	elseif string.match(v, '^5') then
 		subtree:set_generated()
-		subtree:set_text('Command: Idle (maybe?): ' .. v)
-	elseif string.match(v, '^BBBB%+OK 1') then
+		subtree:set_text('Command: Idle (probably): ' .. v)
+	elseif string.match(v, '^%+OK 1') then
 		subtree:set_generated()
 		subtree:set_text('Response: successful Login: ' .. v)
-	elseif string.match(v, '^BBBB%+OK 5') then
+	elseif string.match(v, '^%+OK 5') then
 		subtree:set_generated()
-		subtree:set_text('Response: Idle OK (maybe?): ' .. v)
+		subtree:set_text('Response: Idle OK (probably): ' .. v)
 	elseif i == 2 then
 		subtree:set_text("Username: " .. v)
 	elseif i == 3 then
