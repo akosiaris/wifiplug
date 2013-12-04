@@ -7,7 +7,7 @@ local server = "54.217.214.117"
 local port = "222"
 timersfile = "timers.json"
 json_timer = 60 --seconds
-idle_timer = 20 --seconds
+idle_timer = 30 --seconds
 
 openssl = require("openssl")
 json = require("dkjson")
@@ -29,7 +29,7 @@ function idle(client, session_key)
 	client:send(encrypt(cmd, session_key)..'\n')
 	local answer = decrypt(client:receive('*l'), session_key)
 	if string.match(answer, '^BBBB%+OK 5') then
-		return true
+		return true, ''
 	else
 		return false, answer
 	end
@@ -44,11 +44,10 @@ function setstate(mac, state, session_key)
 			Off =  0,
 			}
 	local cmd = "BBBB3"..","..string.gsub(mac,':',''):upper()..","..states[state].."EEEE"
-	print(cmd)
 	client:send(encrypt(cmd, session_key)..'\n')
 	local answer = decrypt(client:receive('*l'), session_key)
 	if string.match(answer, '^BBBB%+OK 3') then
-		return true
+		return true, ''
 	else
 		return false, answer
 	end
@@ -79,7 +78,7 @@ try(client:send(ecmd..'\n'))
 local answer = decrypt(client:receive('*l'), masterkey)
 session_key = extract_session_key(answer)
 if session_key then
-	print("Logged in succesfully, session_key is: "..string.tohex(session_key))
+	print("INFO: Logged in succesfully, session_key is: "..string.tohex(session_key))
 end
 
 -- Using alarm we will be polling the JSON file for changes json_timer X seconds
@@ -91,11 +90,14 @@ function settimers()
 	if not err then
 		for i,v in pairs(obj.plugs) do
 			if v.datetime == os.date("%Y-%m-%d %H:%M") then
-				setstate(v.macaddr, v.state, session_key)
+				local s, err = setstate(v.macaddr, v.state, session_key)
+				if not s then
+					print("WARNING: Failed to set state of plug. Server answered:"..err) 
+				end
 			end
 		end
 	else
-		print("Invalid JSON file, fix it please")
+		print("WARNING: Invalid JSON file, scheduling will not work until you fix it")
 	end
 	alarm(json_timer)
 end
@@ -115,26 +117,28 @@ alarm(idle_timer, timed_idle)
 -- OMG this is so naive I wanna shoot myself in the foot. Feels like I am back to school writing simple socket programming
 -- ignoring 20 years of advances in the field
 while true do
-	status = client:receive('*l')
-	if not status then
-		print("ERROR: Something serious has happened. Bailing out")
-		break
-	end
-	print(status)
-	status = decrypt(status, session_key)
-	local obj, pos, err = json.decode(string.gsub(status, '^BBBB({.*})EEEE$', "%1"))
+	rd, wr, err = socket.select({client}, {}, 10)
 	if not err then
-		for i,mac in pairs(obj.macList) do
-			-- This is going to be highly inefficient but with packets coming every 15-20 seconds,
-			-- it does not really matter
-			local t = { mac.MacAddr, os.date("%Y-%m-%d %H:%M", mac.UpdateTime/1000), tostring(mac.Status) }
-			print("Got status: " .. toCSV(t))
-			local f = assert(io.open(datafile, 'w+'))
-			f:write(toCSV(t))
-			f:close()
+		status = client:receive('*l')
+		if not status then
+			print("ERROR: Something serious has happened. Bailing out")
+			break
 		end
-	else
-		print("Unexpected message received:"..status)
+		status = decrypt(status, session_key)
+		local obj, pos, err = json.decode(string.gsub(status, '^BBBB({.*})EEEE$', "%1"))
+		if not err then
+			for i,mac in pairs(obj.macList) do
+				-- This is going to be highly inefficient but with packets coming every 15-20 seconds,
+				-- it does not really matter
+				local t = { mac.MacAddr, os.date("%Y-%m-%d %H:%M", mac.UpdateTime/1000), tostring(mac.Status) }
+				print("INFO: Got status: " .. toCSV(t))
+				local f = assert(io.open(datafile, 'w+'))
+				f:write(toCSV(t))
+				f:close()
+			end
+		else
+			print("WARNING: Unexpected message received:"..status)
+		end
 	end
 end
 client:close()
