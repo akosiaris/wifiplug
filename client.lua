@@ -130,10 +130,10 @@ while true do
 			for i,mac in pairs(obj.macList) do
 				-- This is going to be highly inefficient but with packets coming every 15-20 seconds,
 				-- it does not really matter
-				local t = { mac.MacAddr, os.date("%Y-%m-%d %H:%M", mac.UpdateTime/1000), tostring(mac.Status) }
+				local t = { mac.MacAddr, os.date("%Y-%m-%d %H:%M:%S", mac.UpdateTime/1000), tostring(mac.Status) }
 				print("INFO: Got status: " .. toCSV(t))
-				local f = assert(io.open(datafile, 'w+'))
-				f:write(toCSV(t))
+				local f = assert(io.open(datafile, 'a'))
+				f:write(toCSV(t)..'\n')
 				f:close()
 			end
 		else
