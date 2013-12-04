@@ -1,0 +1,10 @@
+{"plugs":
+	[
+	{"macaddr":"00:25:09:02:DC:A4",
+	"state":"OFF",
+	"datetime": "2013-12-04 08:25"}
+	{"macaddr":"00250902DCA4",
+	"state":"ON",
+	"datetime": "2013-12-04 08:30"}
+	]
+}
