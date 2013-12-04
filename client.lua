@@ -24,18 +24,19 @@ function hashpass(p)
 	return string.tohex(h:digest(p)):lower()
 end
 
-function idle(client, session_key)
+function send_idle(client, session_key)
 	local cmd = 'BBBB5EEEE'
 	client:send(encrypt(cmd, session_key)..'\n')
-	local answer = decrypt(client:receive('*l'), session_key)
-	if string.match(answer, '^BBBB%+OK 5') then
-		return true, ''
-	else
-		return false, answer
-	end
 end
 
-function setstate(mac, state, session_key)
+function detect_idle(data)
+	if string.match(data, '^BBBB%+OK 5') then
+		return true
+	end
+	return false
+end
+
+function send_setstate(mac, state, session_key)
 	local states = {on =  1, 
 			ON =  1,
 			On =  1,
@@ -45,12 +46,13 @@ function setstate(mac, state, session_key)
 			}
 	local cmd = "BBBB3"..","..string.gsub(mac,':',''):upper()..","..states[state].."EEEE"
 	client:send(encrypt(cmd, session_key)..'\n')
-	local answer = decrypt(client:receive('*l'), session_key)
-	if string.match(answer, '^BBBB%+OK 3') then
-		return true, ''
-	else
-		return false, answer
+end
+
+function detect_setstate(data)
+	if string.match(data, '^BBBB%+OK 3') then
+		return true
 	end
+	return false
 end
 
 function toCSV (t)
@@ -90,10 +92,7 @@ function settimers()
 	if not err then
 		for i,v in pairs(obj.plugs) do
 			if v.datetime == os.date("%Y-%m-%d %H:%M") then
-				local s, err = setstate(v.macaddr, v.state, session_key)
-				if not s then
-					print("WARNING: Failed to set state of plug. Server answered:"..err) 
-				end
+				send_setstate(v.macaddr, v.state, session_key)
 			end
 		end
 	else
@@ -106,10 +105,7 @@ alarm(json_timer, settimers)
 
 -- We should send an idle command json_timer now and then.
 function timed_idle()
-	ret, st = idle(client, session_key)
-	if ret == false then
-		print("WARNING:, idle command sent and we got an answer but it was an unexpected one. Maybe we will get disconnected. Response was: "..st)
-	end
+	send_idle(client, session_key)
 	alarm(idle_timer)
 end
 alarm(idle_timer, timed_idle)
@@ -127,15 +123,23 @@ while true do
 		status = decrypt(status, session_key)
 		local obj, pos, err = json.decode(string.gsub(status, '^BBBB({.*})EEEE$', "%1"))
 		if not err then
+			local f = assert(io.open(datafile, 'a'))
 			for i,mac in pairs(obj.macList) do
 				-- This is going to be highly inefficient but with packets coming every 15-20 seconds,
 				-- it does not really matter
-				local t = { mac.MacAddr, os.date("%Y-%m-%d %H:%M:%S", mac.UpdateTime/1000), tostring(mac.Status) }
+				local t = { os.date("%Y-%m-%d %H:%M:%S"),
+					 mac.MacAddr,
+					 os.date("%Y-%m-%d %H:%M:%S", mac.UpdateTime/1000),
+					 tostring(mac.Status)
+					 }
 				print("INFO: Got status: " .. toCSV(t))
-				local f = assert(io.open(datafile, 'a'))
 				f:write(toCSV(t)..'\n')
-				f:close()
 			end
+			f:close()
+		elseif detect_setstate(status) then
+			print("INFO: Detected an OK reply to a state change command")
+		elseif detect_idle(status) then
+			print("INFO: Detected an OK reply to a IDLE command")
 		else
 			print("WARNING: Unexpected message received:"..status)
 		end
