@@ -1,10 +1,10 @@
-local username = "demo"
-local password = "000000"
-local datafile = "data.csv"
-
+config = require("client_config")
+local username = config.username
+local password = config.password
+local datafile = config.datafile
+local server = config.server
+local port = config.port
 -- You probably don't need to change anything under this line
-local server = "54.217.214.117"
-local port = "222"
 timersfile = "timers.json"
 json_timer = 60 --seconds
 idle_timer = 30 --seconds
@@ -37,14 +37,8 @@ function detect_idle(data)
 end
 
 function send_setstate(mac, state, session_key)
-	local states = {on =  1, 
-			ON =  1,
-			On =  1,
-			off =  0,
-			OFF =  0,
-			Off =  0,
-			}
-	local cmd = "BBBB3"..","..string.gsub(mac,':',''):upper()..","..states[state].."EEEE"
+	local states = {on =  1, off =  0 }
+	local cmd = "BBBB3"..","..string.gsub(mac,':',''):upper()..","..states[state]:lower().."EEEE"
 	client:send(encrypt(cmd, session_key)..'\n')
 end
 
@@ -113,6 +107,9 @@ alarm(idle_timer, timed_idle)
 -- OMG this is so naive I wanna shoot myself in the foot. Feels like I am back to school writing simple socket programming
 -- ignoring 20 years of advances in the field
 while true do
+	local states = {}
+	states['0'] = 'OFF'
+	states['1'] = 'ON'
 	rd, wr, err = socket.select({client}, {}, 10)
 	if not err then
 		status = client:receive('*l')
@@ -130,7 +127,8 @@ while true do
 				local t = { os.date("%Y-%m-%d %H:%M:%S"),
 					 mac.MacAddr,
 					 os.date("%Y-%m-%d %H:%M:%S", mac.UpdateTime/1000),
-					 tostring(mac.Status)
+					 tostring(mac.Status),
+					 states[tostring(mac.Switcher)]
 					 }
 				print("INFO: Got status: " .. toCSV(t))
 				f:write(toCSV(t)..'\n')

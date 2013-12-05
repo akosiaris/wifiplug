@@ -1,0 +1,9 @@
+-- You will probably have to change all of this to meaningful values
+local client_config = {
+      username = "username",
+      password = "password",
+      datafile = "data.csv",
+      server = "0.1.2.3",
+      port = "222",
+}
+return client_config
