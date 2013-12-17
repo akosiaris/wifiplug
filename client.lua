@@ -6,6 +6,7 @@ local server = config.server
 local port = config.port
 local gcal_url = config.gcal_url
 local known_macs = {}
+local icaldata = nil
 -- You probably don't need to change anything under this line
 timersfile = "timers.json"
 scheduler_timer = 30 --seconds
@@ -197,9 +198,6 @@ end
 
 -- Using alarm we will be polling the Google Calendar URL and submit commands every X seconds
 function ical_scheduler()
-	local icaldata
-
-	icaldata = fetch_ical()
 	if icaldata then
 		gcal_events = ical.load(icaldata)
 	else
@@ -222,6 +220,7 @@ end
 function scheduled_tasks()
 	-- We should send an idle command scheduler_timer now and then.
 	print('Running scheduler')
+	icaldata = fetch_ical()
 	send_idle(client, session_key)
 	-- Scheduling toggling plugs on/off through Google cal
 	alarm(scheduler_timer)
