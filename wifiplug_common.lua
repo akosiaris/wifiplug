@@ -1,5 +1,6 @@
 openssl = require('openssl')
 json = require('dkjson')
+require('dumper')
 sessionkey = ''
 des3ecb = openssl.get_cipher('des-ede3')
 -- declare out protocol

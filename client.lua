@@ -136,8 +136,8 @@ function detect_idle(data)
 end
 
 function send_setstate(mac, state, session_key)
-	local states = {on =  1, off =  0 }
-	local cmd = "BBBB3"..","..string.gsub(mac,':',''):upper()..","..states[state]:lower().."EEEE"
+	local states = {on =  1, off =  0, onf = 1 } -- Assume onf (a typo) means on
+	local cmd = "BBBB3"..","..string.gsub(mac,':',''):upper()..","..states[state:lower()].."EEEE"
 	client:send(encrypt(cmd, session_key)..'\n')
 end
 
@@ -213,7 +213,7 @@ function ical_scheduler()
 		calculate_occurences(event)
 		if event.type == 'VEVENT' then
 			for i, oc in pairs(event.occurences) do
-				if now >= oc.start and now <= event.stop then
+				if now >= oc.start and now <= oc.stop then
 					local state = parse_event(event.DESCRIPTION)
 				end
 			end
@@ -230,6 +230,7 @@ function scheduled_tasks()
 	alarm(scheduler_timer)
 end
 alarm(scheduler_timer, scheduled_tasks)
+icaldata = fetch_ical()
 
 -- OMG this is so naive I wanna shoot myself in the foot. Feels like I am back to school writing simple socket programming
 -- ignoring 20 years of advances in the field
