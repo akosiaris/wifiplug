@@ -104,3 +104,8 @@ function canonicalize_mac(mac)
     '([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])([0-9A-F][0-9A-F])',
     '%1:%2:%3:%4:%5:%6')
 end
+
+-- Define a shortcut function for testing
+function dump(...)
+    print(DataDumper(...), "\n---")
+end
