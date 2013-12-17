@@ -6,6 +6,7 @@ local server = config.server
 local port = config.port
 local gcal_url = config.gcal_url
 local known_macs = {}
+local scheduled_macs = {}
 local icaldata = nil
 -- You probably don't need to change anything under this line
 timersfile = "timers.json"
@@ -109,13 +110,31 @@ function parse_event(data)
 	for i, line in pairs(lines) do
 		if string.match(line, '^%x%x%x%x%x%x%x%x%x%x%x%x,O[NF]F?$') then
 			t = string.split(line, ',')
-			if known_macs[t[1]] and known_macs[t[1]] ~= t[2] then
-				print ("We send a command for: ".. t[1] .. " to turn " .. t[2])
-				send_setstate(t[1], t[2], session_key)
+			-- Store the scheduled mac_state assuming we know the MAC
+			if known_macs[t[1]] then
+				scheduled_macs[t[1]] = t[2]
 			end
 		end
 	end
 	return nil
+end
+
+function synchronize_states()
+	-- We iterate over all non-scheduled MACs
+	for mac, state in pairs(known_macs) do
+		if not scheduled_macs[mac] and state == 'OFF' then
+			print("INFO: A non-scheduled MAC was found in OFF state: ".. mac .. " Turning ON")
+			send_setstate(mac, 'ON', session_key)
+		end
+	end
+	-- Then over all scheduled MACs
+	for mac, state in pairs(scheduled_macs) do
+		if known_macs[mac] and known_macs[mac] ~= state then
+			print("INFO: A schedule for MAC: "..mac.." which was: " .. known_macs[mac] .. " to turn: ".. state .." was found")
+			send_setstate(mac, state, session_key)
+		end
+	end
+	scheduled_macs = {}
 end
 
 function hashpass(p)
@@ -223,7 +242,7 @@ end
 
 function scheduled_tasks()
 	-- We should send an idle command scheduler_timer now and then.
-	print('Running scheduler')
+	print('INFO: Running scheduler')
 	icaldata = fetch_ical()
 	send_idle(client, session_key)
 	-- Scheduling toggling plugs on/off through Google cal
@@ -262,6 +281,7 @@ while true do
 				f:write(toCSV(t)..'\n')
 				known_macs[mac.MacAddr] = states[tostring(mac.Switcher)]
 				ical_scheduler()
+				synchronize_states()
 			end
 			f:close()
 		elseif detect_setstate(status) then
