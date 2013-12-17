@@ -9,7 +9,7 @@ local known_macs = {}
 local icaldata = nil
 -- You probably don't need to change anything under this line
 timersfile = "timers.json"
-scheduler_timer = 30 --seconds
+scheduler_timer = 60 --seconds
 
 openssl = require("openssl")
 json = require("dkjson")
