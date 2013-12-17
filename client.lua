@@ -174,6 +174,9 @@ local answer = decrypt(client:receive('*l'), masterkey)
 session_key = extract_session_key(answer)
 if session_key then
 	print("INFO: Logged in succesfully, session_key is: "..string.tohex(session_key))
+else
+	print("ERROR: Could not login succesfully, exiting")
+	os.exit(1)
 end
 
 -- Using alarm we will be polling the JSON file for changes scheduler_timer X seconds
@@ -201,7 +204,8 @@ function ical_scheduler()
 	if icaldata then
 		gcal_events = ical.load(icaldata)
 	else
-		print('Error reading Google Cal')
+		print('INFO: Google Calendar not populated yet. Please wait for first scheduler run')
+		return nil
 	end
 	now = os.time()
 	for k, event in pairs(gcal_events) do

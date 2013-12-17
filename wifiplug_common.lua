@@ -7,7 +7,7 @@ des3ecb = openssl.get_cipher('des-ede3')
 masterkey = '""OX'..string.char(0x88)..'8(%%yQ'..string.char(0xcb)..'0@6(3)'..string.char(0x11)..'KD'..string.char(0xfe)..'vh'
 -- helper functions
 -- Compatibility: Lua-5.1
-function split(str, pat)
+function string.split(str, pat)
    local t = {}  -- NOTE: use {n = 0} in Lua-5.0
    local fpat = "(.-)" .. pat
    local last_end = 1
@@ -36,6 +36,15 @@ function string.tohex(str)
     return (str:gsub('.', function (c)
         return string.format('%02X', string.byte(c))
     end))
+end
+
+function table.contains(table, element)
+    for _, value in pairs(table) do
+        if value == element then
+            return true
+        end
+    end
+    return false
 end
 
 function decrypt(c, k)
@@ -79,7 +88,7 @@ end
 
 function extract_session_key(s)
     if string.match(s, '^BBBB%+OK 1') then
-        local parts = split(s, " ")
+        local parts = string.split(s, " ")
         k = parts[#parts]
         k = string.gsub(k, 'E+$', '')
         k = string.fromhex(k)
