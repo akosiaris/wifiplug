@@ -2,33 +2,41 @@ Introduction
 ============
 
 This is a project holding all relevant code and data obtained during an investigation to the
-wifiplug Android application protocol.
-It is well versed for evaluation and research purposes but _should not_ be used in production.
+wifiplug Android application protocol. The protocol has been named this way by me and is no way
+official. All of the information and the resulting code is the result of reverse engineering and
+as such it may very well have faults and misconceptions. It is well versed for evaluation and
+research purposes but probably not ready to be used in production environments.
+
+The wifiplug term is the property of wifiplug LTD
 
 Brief explanation of the protocol
 =================================
 
-The wifiplug Android application protocol was discovered and evaluated by chance during the
+The wifiplug Android application protocol was discovered and evaluated after some interest in the wifiplug
 routine installation of the wifiplug Android application. This is the protocol spoken between
 the various installations of the Android application around the world and a server. That specific
-server is the one that talks with the plugs (their protocol has not been evaluated or even poked at)
-The Android application does not talk directly with the plug.
+server is the one that talks with the plugs (that specific protocol has not been evaluated at all)
+The Android application does _NOT_ talk directly with the plugs.
 
-The protocol is encrypted using 3DES and two keys. First there is a preshared key that is used to
-identify the user. Obtaining the preshared key is trivial and left as an exercise to anyone feeling
-the need to obtain it. After user authentication takes place (through standard username, password -
-the latter being MD5 hashed and transmitted as that for some reason - procedure) a session key is
-obtained and used to encrypt the rest of the conversation.
+The protocol is encrypted using 3DES and two keys. There is a _master_ preshared key that is used to
+encrypt the initiating parts of the conversation that is used to identify the user. Obtaining the
+preshared key is trivial and left as an exercise to anyone feeling the need to obtain it. After user
+authentication takes place (through standard username, password - the latter being MD5 hashed and
+transmitted as that for some reason - procedure) a session key is obtained and used to encrypt the
+rest of the conversation.
 
 The server will periodically send status updates to the application. Those are not strictly status
 updates since they will be sent anyway regardless of whether there has been any change in the state
-of a plug.
+of a plug. Those are encrypted always with the session key.
 
 Commands can be sent by the application to the server asking changes to various attributes like the
-state of a plug.
+state of a plug. Commands are always encrypted with the session key. It seems like the exception here is
+the login/logout commands
 
 Commands are (for some reason) enclosed in the strings 'BBBB' (BEGIN ??) and 'EEEE' (END ??) and are
 identified by a single number (1,2,3 etc). So for example 5 is the idle command, 1 is the login command etc
+The server responds to these command by send the number corresponding to the sent command suffixed with
+the string '+OK' and enclosed in the 'BBBB', 'EEEE' strings.
 
 Language
 ========
@@ -36,8 +44,8 @@ Language
 Lua. Why? Because it started as a PoC wireshark dissector and then a PoC client was
 developped on top of it.
 
-Parts
-=====
+Explanation of the code
+=======================
 
 The projects is split into 3 parts
 
@@ -45,7 +53,7 @@ Common code
 -----------
 
 The library of common functions, variables used by both the dissector and the client. This
-resides in wifiplug\_common.lua
+resides in wifiplug\_common.lua. dumper.lua is being imported here for debugging purposes.
 
 Wireshark dissector
 -------------------
@@ -57,16 +65,61 @@ client application
 ------------------
 
 The client application simulates a few very specific aspects of the Android application. Namely it
-is capable of login in (but not logging out!), parsing the status updates sent by the server and write
-them to a CSV file and scheduling the toggling on/off of known plugs through a Google cal scheduler
+is capable of logging in (but not logging out!), parsing the status updates sent by the server and write
+them to a CSV file and scheduling the toggling on/off of known plugs through a Google Calendar scheduler.
+It's code resides in client.lua while also making use of ical.lua, dkjson.lua and two C extensions for Lua,
+namely alarm and openssl.
+
+Libraries
+---------
+
+Libraries not written by me are ical.lua, dkjson.lua, dumper.lua and alarm and openssl. The copyright notices for
+those have been kept intact. The two shared object libraries have binary objects redistributed for easy use. If any
+issues arise from that redistribution I will remove them
 
 How To Use
 ==========
 
-Just:
+Wireshark dissector
+------------------
 
-	git clone the repo
-	cp client\_config.lua.dist file client\_config.lua.
+Just run wireshark in the directory you have the code with the -X parameter
+
+	wireshark -X:wifiplug.lua mydump.dump
+
+Where mydump.dump is a tcpdump/wireshark dump
+
+
+Client application
+------------------
+
+Make sure you use debian wheezy (7.x) or Ubuntu LTS 12.04 64-bit
+
+* Install the prerequisites luasec and lua socket
+
+For Debian Wheezy run with root privileges:
+
+	apt-get install lua-socket lua-sec lua5.1
+
+For Ubuntu LTS 12.04 with root privileges (sudo probably)
+
+	apt-get install liblua5.1-sec1 liblua5.1-socket2 lua5.1
+
+* Get the code
+
+Either through git
+
+	git clone repo_uri
+
+or through the tar file
+
+	tar xfvz wifiplug.tar.gz
+
+* Configure it
+
+Copy the dist file 
+
+	cp client_config.lua.dist file client_config.lua.
 
 Edit client\_config.lua and adjust the settings to match your own, then run run.sh
 
@@ -83,8 +136,9 @@ For the Google Calendar scheduling function,
 * make sure it has the same timezone as where you will be deploying the code
 * create events with whatever names and scheduling you feel like and then add lines like the following in the description
 
-	aabbccddeeff,ON
+For two MACs and respective states
 
+	aabbccddeeff,ON
 	112233445566,OFF
 
 * Any lines not conforming to the above will be disregarded. _PLEASE DO NOT_ enter the same MAC twice. The last specified one is
@@ -111,3 +165,12 @@ your favourite OS
 
 * Q: How about the master 3DES key ?
 * A: I wont be providing it publicly for security reasons. Feel free to discover it yourself though.
+
+* Q: How about the server IP then?
+* A: That is even easier for you to figure out
+
+License
+-------
+
+All parts of the code and/or art that are not redistributed such as libraries are assumed to be under the license specified
+in LICENSE file
