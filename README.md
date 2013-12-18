@@ -13,7 +13,7 @@ Brief explanation of the protocol
 =================================
 
 The wifiplug Android application protocol was discovered and evaluated after some interest in the wifiplug
-routine installation of the wifiplug Android application. This is the protocol spoken between
+routine installation of the wifiplug Android application. This is the protocol used between
 the various installations of the Android application around the world and a server. That specific
 server is the one that talks with the plugs (that specific protocol has not been evaluated at all)
 The Android application does _NOT_ talk directly with the plugs.
@@ -33,9 +33,9 @@ Commands can be sent by the application to the server asking changes to various 
 state of a plug. Commands are always encrypted with the session key. It seems like the exception here is
 the login/logout commands
 
-Commands are (for some reason) enclosed in the strings 'BBBB' (BEGIN ??) and 'EEEE' (END ??) and are
-identified by a single number (1,2,3 etc). So for example 5 is the idle command, 1 is the login command etc
-The server responds to these command by send the number corresponding to the sent command suffixed with
+Commands are (for some reason) enclosed in the strings 'BBBB' (presumably BEGIN) and 'EEEE' (presumably END) and are
+identified by a single integer (1,2,3 etc). So for example 5 is the IDLE command, 1 is the LOGIN command etc
+The server responds to these commands by sending the number corresponding to the sent command suffixed with
 the string '+OK' and enclosed in the 'BBBB', 'EEEE' strings.
 
 States of a wifiplug
@@ -55,7 +55,7 @@ developped on top of it.
 Explanation of the code
 =======================
 
-The projects is split into 3 parts
+The project is split into 3 parts
 
 Common code
 -----------
@@ -174,8 +174,8 @@ your favourite OS
 * Q: How about the master 3DES key ?
 * A: I wont be providing it publicly for security reasons. Feel free to discover it yourself though.
 
-* Q: How about the server IP then?
-* A: That is even easier for you to figure out
+* Q: How about the server IP ?
+* A: I wont be providing it publicly for security reasons. Feel free to discover it yourself though.
 
 License
 -------
