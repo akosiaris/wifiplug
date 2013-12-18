@@ -102,7 +102,7 @@ function calculate_occurences(event)
 	end
 end
 
-function parse_event(data)
+function parse_event(data, start)
 	data = string.gsub(data, '\\n', ';')
 	data = string.gsub(data, '\\', '')
 	data = string.upper(data)
@@ -112,7 +112,7 @@ function parse_event(data)
 			t = string.split(line, ',')
 			-- Store the scheduled mac_state assuming we know the MAC
 			if known_macs[t[1]] then
-				scheduled_macs[t[1]] = t[2]
+				scheduled_macs[t[1]] = { state = t[2], start = start }
 			end
 		end
 	end
@@ -121,17 +121,21 @@ end
 
 function synchronize_states()
 	-- We iterate over all non-scheduled MACs
-	for mac, state in pairs(known_macs) do
-		if not scheduled_macs[mac] and state == 'OFF' then
+	for mac, data in pairs(known_macs) do
+		if not scheduled_macs[mac] and data['state'] == 'OFF' then
 			print("INFO: A non-scheduled MAC was found in OFF state: ".. mac .. " Turning ON")
 			send_setstate(mac, 'ON', session_key)
 		end
 	end
 	-- Then over all scheduled MACs
-	for mac, state in pairs(scheduled_macs) do
-		if known_macs[mac] and known_macs[mac] ~= state then
-			print("INFO: A schedule for MAC: "..mac.." which was: " .. known_macs[mac] .. " to turn: ".. state .." was found")
-			send_setstate(mac, state, session_key)
+	for mac, data in pairs(scheduled_macs) do
+		if known_macs[mac] and known_macs[mac]['state'] ~= data['state'] then
+			if known_macs[mac]['last_change'] < data['start'] then
+				print("INFO: A schedule for MAC: "..mac.." which was: " .. known_macs[mac]['state'] .. " to turn: ".. data['state'] .." was found")
+				send_setstate(mac, data['state'], session_key)
+			else
+				print("INFO: A possibly overriden by user action MAC: " .. mac .. " in state: " .. known_macs[mac]['state'] .. " scheduled for: " .. scheduled_macs[mac]['state'] .. " has been detected, doing nothing")
+			end
 		end
 	end
 	scheduled_macs = {}
@@ -233,7 +237,7 @@ function ical_scheduler()
 		if event.type == 'VEVENT' then
 			for i, oc in pairs(event.occurences) do
 				if now >= oc.start and now <= oc.stop then
-					local state = parse_event(event.DESCRIPTION)
+					local state = parse_event(event.DESCRIPTION, oc.start)
 				end
 			end
 		end
@@ -279,7 +283,7 @@ while true do
 					 }
 				print("INFO: Got status: " .. toCSV(t))
 				f:write(toCSV(t)..'\n')
-				known_macs[mac.MacAddr] = states[tostring(mac.Switcher)]
+				known_macs[mac.MacAddr] = { state = states[tostring(mac.Switcher)], last_change = mac.UpdateTime/1000 }
 				ical_scheduler()
 				synchronize_states()
 			end
