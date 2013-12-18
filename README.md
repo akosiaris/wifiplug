@@ -38,6 +38,14 @@ identified by a single number (1,2,3 etc). So for example 5 is the idle command,
 The server responds to these command by send the number corresponding to the sent command suffixed with
 the string '+OK' and enclosed in the 'BBBB', 'EEEE' strings.
 
+States of a wifiplug
+====================
+
+A wifiplug may go through a number of states. These are explained in the following diagram. Please note that
+this diagram is the result of reverse engineering and may well be inaccurate
+
+![wifiplug states](states.png "Wifiplug states")
+
 Language
 ========
 
