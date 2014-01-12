@@ -24,6 +24,8 @@ local app_id = 1
 local offset = 0 -- This could be derived better, but let's play stupid for now
 local version = 3
 
+local continuation_data = ''
+
 function fetch_ical()
 	local sink
 	sink, err = https.request(gcal_url)
@@ -255,6 +257,14 @@ end
 alarm(scheduler_timer, scheduled_tasks)
 icaldata = fetch_ical()
 
+function detect_continuation_data(data)
+	if string.match(data, 'CCC$') then
+		return true
+	end
+	return false
+
+end
+
 -- OMG this is so naive I wanna shoot myself in the foot. Feels like I am back to school writing simple socket programming
 -- ignoring 20 years of advances in the field
 while true do
@@ -269,31 +279,39 @@ while true do
 			break
 		end
 		status = decrypt(status, session_key)
-		local obj, pos, err = json.decode(string.gsub(status, '^BBBB({.*})EEEE$', "%1"))
-		if not err then
-			local f = assert(io.open(datafile, 'a'))
-			for i,mac in pairs(obj.macList) do
-				-- This is going to be highly inefficient but with packets coming every 15-20 seconds,
-				-- it does not really matter
-				local t = { os.date("%Y-%m-%d %H:%M:%S"),
-					 mac.MacAddr,
-					 os.date("%Y-%m-%d %H:%M:%S", mac.UpdateTime/1000),
-					 tostring(mac.Status),
-					 states[tostring(mac.Switcher)]
-					 }
-				print("INFO: Got status: " .. toCSV(t))
-				f:write(toCSV(t)..'\n')
-				known_macs[mac.MacAddr] = { state = states[tostring(mac.Switcher)], last_change = mac.UpdateTime/1000 }
-				ical_scheduler()
-				synchronize_states()
+		if detect_continuation_data(status) then
+			continuation_data = continuation_data .. string.gsub(status,'^BBBB(.*)CCC$', '%1')
+		elseif continuation_data ~= '' then
+			status = continuation_data .. string.gsub(status, '^BBBB', '')
+			continuation_data = ''
+		end
+		if continuation_data == '' then
+			local obj, pos, err = json.decode(string.gsub(status, '^BBBB({.*})EEEE$', '%1'))
+			if not err then
+				local f = assert(io.open(datafile, 'a'))
+				for i,mac in pairs(obj.macList) do
+					-- This is going to be highly inefficient but with packets coming every 15-20 seconds,
+					-- it does not really matter
+					local t = { os.date("%Y-%m-%d %H:%M:%S"),
+						 mac.MacAddr,
+						 os.date("%Y-%m-%d %H:%M:%S", mac.UpdateTime/1000),
+						 tostring(mac.Status),
+						 states[tostring(mac.Switcher)]
+						 }
+					print("INFO: Got status: " .. toCSV(t))
+					f:write(toCSV(t)..'\n')
+					known_macs[mac.MacAddr] = { state = states[tostring(mac.Switcher)], last_change = mac.UpdateTime/1000 }
+					ical_scheduler()
+					synchronize_states()
+				end
+				f:close()
+			elseif detect_setstate(status) then
+				print("INFO: Detected an OK reply to a state change command")
+			elseif detect_idle(status) then
+				print("INFO: Detected an OK reply to a IDLE command")
+			else
+				print("WARNING: Unexpected message received:"..status)
 			end
-			f:close()
-		elseif detect_setstate(status) then
-			print("INFO: Detected an OK reply to a state change command")
-		elseif detect_idle(status) then
-			print("INFO: Detected an OK reply to a IDLE command")
-		else
-			print("WARNING: Unexpected message received:"..status)
 		end
 	end
 end
