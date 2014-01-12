@@ -124,14 +124,14 @@ end
 function synchronize_states()
 	-- We iterate over all non-scheduled MACs
 	for mac, data in pairs(known_macs) do
-		if not scheduled_macs[mac] and data['state'] == 'OFF' then
+		if data['status'] and not scheduled_macs[mac] and data['state'] == 'OFF' then
 			print("INFO: A non-scheduled MAC was found in OFF state: ".. mac .. " Turning ON")
 			send_setstate(mac, 'ON', session_key)
 		end
 	end
 	-- Then over all scheduled MACs
 	for mac, data in pairs(scheduled_macs) do
-		if known_macs[mac] and known_macs[mac]['state'] ~= data['state'] then
+		if known_macs[mac] and known_macs[mac]['state'] ~= data['state'] and known_macs[mac]['status'] then
 			if known_macs[mac]['last_change'] < data['start'] then
 				print("INFO: A schedule for MAC: "..mac.." which was: " .. known_macs[mac]['state'] .. " to turn: ".. data['state'] .." was found")
 				send_setstate(mac, data['state'], session_key)
@@ -300,7 +300,11 @@ while true do
 						 }
 					print("INFO: Got status: " .. toCSV(t))
 					f:write(toCSV(t)..'\n')
-					known_macs[mac.MacAddr] = { state = states[tostring(mac.Switcher)], last_change = mac.UpdateTime/1000 }
+					known_macs[mac.MacAddr] = {
+						state = states[tostring(mac.Switcher)],
+						last_change = mac.UpdateTime/1000,
+						status = mac.Status
+						}
 					ical_scheduler()
 					synchronize_states()
 				end
