@@ -227,7 +227,7 @@ end
 -- Using alarm we will be polling the Google Calendar URL and submit commands every X seconds
 function ical_scheduler()
 	if icaldata then
-		gcal_events = ical.load(icaldata)
+		gcal_events = ical.load(icaldata['data'])
 	else
 		print('INFO: Google Calendar not populated yet. Please wait for first scheduler run')
 		return nil
@@ -249,13 +249,19 @@ end
 function scheduled_tasks()
 	-- We should send an idle command scheduler_timer now and then.
 	print('INFO: Running scheduler')
-	icaldata = fetch_ical()
+	if not icaldata then
+		icaldata = { data=nil, date=0 }
+	end
+	if os.time() >= icaldata['date'] + 3600 then
+		icaldata['data'] = fetch_ical()
+		icaldata['date'] = os.time()
+	end
 	send_idle(client, session_key)
 	-- Scheduling toggling plugs on/off through Google cal
 	alarm(scheduler_timer)
 end
 alarm(scheduler_timer, scheduled_tasks)
-icaldata = fetch_ical()
+scheduled_tasks()
 
 function detect_continuation_data(data)
 	if string.match(data, 'CCC$') then
@@ -288,11 +294,12 @@ while true do
 		if continuation_data == '' then
 			local obj, pos, err = json.decode(string.gsub(status, '^BBBB({.*})EEEE$', '%1'))
 			if not err then
+				local now = os.date("%Y-%m-%d %H:%M:%S")
 				local f = assert(io.open(datafile, 'a'))
 				for i,mac in pairs(obj.macList) do
 					-- This is going to be highly inefficient but with packets coming every 15-20 seconds,
 					-- it does not really matter
-					local t = { os.date("%Y-%m-%d %H:%M:%S"),
+					local t = { now,
 						 mac.MacAddr,
 						 os.date("%Y-%m-%d %H:%M:%S", mac.UpdateTime/1000),
 						 tostring(mac.Status),
