@@ -5,10 +5,12 @@ local datafile = config.datafile
 local server = config.server
 local port = config.port
 local gcal_url = config.gcal_url
+local ical_age = config.ical_age
+
+-- You probably don't need to change anything under this line
 local known_macs = {}
 local scheduled_macs = {}
 local icaldata = nil
--- You probably don't need to change anything under this line
 timersfile = "timers.json"
 scheduler_timer = 60 --seconds
 
@@ -252,7 +254,7 @@ function scheduled_tasks()
 	if not icaldata then
 		icaldata = { data=nil, date=0 }
 	end
-	if os.time() >= icaldata['date'] + 3600 then
+	if os.time() >= icaldata['date'] + ical_age then
 		icaldata['data'] = fetch_ical()
 		icaldata['date'] = os.time()
 		ical_scheduler()
