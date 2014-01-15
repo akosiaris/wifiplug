@@ -234,17 +234,9 @@ function ical_scheduler()
 		print('INFO: Google Calendar not populated yet. Please wait for first scheduler run')
 		return nil
 	end
-	now = os.time()
 	for k, event in pairs(gcal_events) do
 		create_rrules(event)
 		calculate_occurences(event)
-		if event.type == 'VEVENT' then
-			for i, oc in pairs(event.occurences) do
-				if now >= oc.start and now <= oc.stop then
-					local state = parse_event(event.DESCRIPTION, oc.start)
-				end
-			end
-		end
 	end
 end
 
@@ -254,11 +246,22 @@ function scheduled_tasks()
 	if not icaldata then
 		icaldata = { data=nil, date=0 }
 	end
-	if os.time() >= icaldata['date'] + ical_age then
+	local now = os.time()
+	if now >= icaldata['date'] + ical_age then
 		icaldata['data'] = fetch_ical()
 		icaldata['date'] = os.time()
 		ical_scheduler()
 	end
+	for k, event in pairs(gcal_events) do
+		if event.type == 'VEVENT' then
+			for i, oc in pairs(event.occurences) do
+				if now >= oc.start and now <= oc.stop then
+					local state = parse_event(event.DESCRIPTION, oc.start)
+				end
+			end
+		end
+	end
+	synchronize_states()
 	send_idle(client, session_key)
 	-- Scheduling toggling plugs on/off through Google cal
 	alarm(scheduler_timer)
@@ -316,7 +319,6 @@ while true do
 						status = mac.Status
 						}
 				end
-				synchronize_states()
 				f:close()
 			elseif detect_setstate(status) then
 				print("INFO: Detected an OK reply to a state change command")
