@@ -255,6 +255,7 @@ function scheduled_tasks()
 	if os.time() >= icaldata['date'] + 3600 then
 		icaldata['data'] = fetch_ical()
 		icaldata['date'] = os.time()
+		ical_scheduler()
 	end
 	send_idle(client, session_key)
 	-- Scheduling toggling plugs on/off through Google cal
@@ -312,9 +313,8 @@ while true do
 						last_change = mac.UpdateTime/1000,
 						status = mac.Status
 						}
-					ical_scheduler()
-					synchronize_states()
 				end
+				synchronize_states()
 				f:close()
 			elseif detect_setstate(status) then
 				print("INFO: Detected an OK reply to a state change command")
