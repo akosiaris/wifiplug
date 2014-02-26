@@ -189,6 +189,23 @@ function escapeCSV (s)
 	return s
 end
 
+function write_status_files()
+	for mac, data in pairs(known_macs) do
+		local f = assert(io.open('plugstatus/'..mac, "w"))
+		local t = f:write(string.format([[
+<html>
+  <head>
+  Plug Status
+  </head>
+  <body>
+  <h1>
+  Plug with MAC: %s connection status: %s and plug status: %s
+  </body>
+  </html>]], mac, tostring(data['status']), data['state']))
+		f:close()
+	end
+end
+
 -- Login, somebody shoot me
 local date = os.date("%Y%m%d%H%M%S")
 cmd = 'BBBB1'..","..username..","..hashpass(password)..","..date..","..app_id..","..offset..","..version.."EEEE"
@@ -263,6 +280,7 @@ function scheduled_tasks()
 	end
 	synchronize_states()
 	send_idle(client, session_key)
+	write_status_files()
 	-- Scheduling toggling plugs on/off through Google cal
 	alarm(scheduler_timer)
 end
