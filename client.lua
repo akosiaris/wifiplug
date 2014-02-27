@@ -191,17 +191,32 @@ end
 
 function write_status_files()
 	for mac, data in pairs(known_macs) do
-		local f = assert(io.open('plugstatus/'..mac, "w"))
-		local t = f:write(string.format([[
+                local f = assert(io.open('plugstatus/'..mac..'.html', 'w'))
+                local t = f:write(string.format([[
+<!DOCTYPE html>
 <html>
   <head>
-  Plug Status
+  <title>Plug Status</title>
+  <meta http-equiv="refresh" content="20">
+  <style>
+  .TRUE {color: green;}
+  .FALSE {color: red;}
+  .ON {color: green;}
+  .OFF {color: red;}
+  .bold { font-weight: bold; color: gray;}
+  </style>
   </head>
   <body>
   <h1>
-  Plug with MAC: %s connection status: %s and plug status: %s
+  Plug MAC: <span class="bold">%s</span> |
+  connection status: <span class="%s">%s</span> |
+  plug status: <span class="%s">%s</span>
+  </h1>
+  Note: The page is automatically updated with new data every 1 minute
   </body>
-  </html>]], mac, tostring(data['status']), data['state']))
+  </html>]], mac,
+           tostring(data['status']):upper(), tostring(data['status']):upper(),
+           data['state'], data['state']))
 		f:close()
 	end
 end
