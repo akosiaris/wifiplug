@@ -208,15 +208,19 @@ function write_status_files()
   </head>
   <body>
   <h1>
-  Plug MAC: <span class="bold">%s</span> |
-  connection status: <span class="%s">%s</span> |
-  plug status: <span class="%s">%s</span>
+  Plug MAC: <span class="bold">%s</span>
+  <!--
+  | connection status: <span class="%s">%s</span>
+  | plug status: <span class="%s">%s</span>
+  -->
   </h1>
+  <img src="%s.png" alt="%s state image">
   Note: The page is automatically updated with new data every 1 minute
   </body>
   </html>]], mac,
            tostring(data['status']):upper(), tostring(data['status']):upper(),
-           data['state'], data['state']))
+           data['state'], data['state'],
+           tostring(data['status']):upper(), tostring(data['status']):upper()))
 		f:close()
 	end
 end
