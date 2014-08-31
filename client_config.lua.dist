@@ -1,11 +1,12 @@
 -- You will probably have to change all of this to meaningful values
+-- vim: tabstop=4:shiftwidth=4:softtabstop=4:expandtab
 local client_config = {
-      username = "username",
-      password = "password",
-      datafile = "data.csv",
-      server = "0.1.2.3",
-      port = "222",
-      gcal_url = "",
-      ical_age = 1800,
+    username = 'username',
+    password = 'password',
+    datafile = 'data.csv',
+    server = '0.1.2.3',
+    port = '222',
+    gcal_url = '',
+    ical_age = 1800,
 }
 return client_config

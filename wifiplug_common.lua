@@ -1,3 +1,4 @@
+-- vim: tabstop=4:shiftwidth=4:softtabstop=4:expandtab
 openssl = require('openssl')
 json = require('dkjson')
 zlib = require('zlib')
@@ -11,22 +12,22 @@ masterkey = '""OX'..string.char(0x88)..'8(%%yQ'..string.char(0xcb)..'0@6(3)'..st
 -- helper functions
 -- Compatibility: Lua-5.1
 function string.split(str, pat)
-   local t = {}  -- NOTE: use {n = 0} in Lua-5.0
-   local fpat = "(.-)" .. pat
-   local last_end = 1
-   local s, e, cap = str:find(fpat, 1)
-   while s do
-      if s ~= 1 or cap ~= "" then
-     table.insert(t,cap)
-      end
-      last_end = e+1
-      s, e, cap = str:find(fpat, last_end)
-   end
-   if last_end <= #str then
-      cap = str:sub(last_end)
-      table.insert(t, cap)
-   end
-   return t
+    local t = {}  -- NOTE: use {n = 0} in Lua-5.0
+    local fpat = '(.-)' .. pat
+    local last_end = 1
+    local s, e, cap = str:find(fpat, 1)
+    while s do
+        if s ~= 1 or cap ~= '' then
+            table.insert(t,cap)
+        end
+        last_end = e+1
+        s, e, cap = str:find(fpat, last_end)
+    end
+    if last_end <= #str then
+        cap = str:sub(last_end)
+        table.insert(t, cap)
+    end
+    return t
 end
 
 function string.fromhex(str)
@@ -111,7 +112,7 @@ end
 
 function extract_session_key(s)
     if string.match(s, '^BBBB%+OK 1') then
-        local parts = string.split(s, " ")
+        local parts = string.split(s, ' ')
         k = parts[#parts]
         k = string.gsub(k, 'E+$', '')
         k = string.fromhex(k)
@@ -130,5 +131,5 @@ end
 
 -- Define a shortcut function for testing
 function dump(...)
-    print(DataDumper(...), "\n---")
+    print(DataDumper(...), '\n---')
 end
