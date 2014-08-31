@@ -226,43 +226,6 @@ function write_status_files()
     end
 end
 
--- Login, somebody shoot me
-local date = os.date('%Y%m%d%H%M%S')
-cmd = 'BBBB1'..','..username..','..hashpass(password)..','..date..','..app_id..','..offset..','..version..'EEEE'
-ecmd = encrypt(cmd, masterkey)
-
-client = socket.try(socket.connect(server, port))
-local try = socket.newtry(function() client:close() end)
-try(client:send(ecmd..'\n'))
-local answer = decrypt(client:receive('*l'), masterkey)
-session_key = extract_session_key(answer)
-if session_key then
-    print('INFO: Logged in succesfully, session_key is: '..string.tohex(session_key))
-else
-    print('ERROR: Could not login succesfully, exiting')
-    os.exit(1)
-end
-
--- Using alarm we will be polling the JSON file for changes scheduler_timer X seconds
-function settimers()
-    local f = assert(io.open(timersfile, 'r'))
-    local t = f:read('*all')
-    f:close()
-    local obj, pos, err = json.decode(t)
-    if not err then
-        for i,v in pairs(obj.plugs) do
-            if v.datetime == os.date('%Y-%m-%d %H:%M') then
-                send_setstate(v.macaddr, v.state, session_key)
-            end
-        end
-    else
-        print('WARNING: Invalid JSON file, scheduling will not work until you fix it')
-    end
-    alarm(scheduler_timer)
-end
-
---alarm(scheduler_timer, settimers)
-
 -- Using alarm we will be polling the Google Calendar URL and submit commands every X seconds
 function ical_scheduler()
     if icaldata then
@@ -313,6 +276,23 @@ function detect_continuation_data(data)
     end
     return false
 
+end
+
+-- Login, somebody shoot me
+local date = os.date('%Y%m%d%H%M%S')
+cmd = 'BBBB1'..','..username..','..hashpass(password)..','..date..','..app_id..','..offset..','..version..'EEEE'
+ecmd = encrypt(cmd, masterkey)
+
+client = socket.try(socket.connect(server, port))
+local try = socket.newtry(function() client:close() end)
+try(client:send(ecmd..'\n'))
+local answer = decrypt(client:receive('*l'), masterkey)
+session_key = extract_session_key(answer)
+if session_key then
+    print('INFO: Logged in succesfully, session_key is: '..string.tohex(session_key))
+else
+    print('ERROR: Could not login succesfully, exiting')
+    os.exit(1)
 end
 
 -- OMG this is so naive I wanna shoot myself in the foot. Feels like I am back to school writing simple socket programming
@@ -369,4 +349,3 @@ while true do
     end
 end
 client:close()
-
