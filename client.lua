@@ -133,7 +133,11 @@ function synchronize_states()
     for mac, data in pairs(known_macs) do
         if data['status'] and not scheduled_macs[mac] and data['state'] == 'OFF' then
             print('INFO: A non-scheduled MAC was found in OFF state: '.. mac .. ' Turning ON')
-            send_setstate(mac, 'ON', session_key)
+            if data['version'] == 1 then
+                send_setstate(mac, 'ON', session_key)
+            elseif data['version'] == 2 then
+                send_setstate_v2(mac, 'ON')
+            end
         end
     end
     -- Then over all scheduled MACs
@@ -141,7 +145,11 @@ function synchronize_states()
         if known_macs[mac] and known_macs[mac]['state'] ~= data['state'] and known_macs[mac]['status'] then
             if known_macs[mac]['last_change'] < data['start'] then
                 print('INFO: A schedule for MAC: '..mac..' which was: ' .. known_macs[mac]['state'] .. ' to turn: '.. data['state'] ..' was found')
-                send_setstate(mac, data['state'], session_key)
+                if data['version'] == 1 then
+                    send_setstate(mac, data['state'], session_key)
+                elseif data['version'] == 2 then
+                    send_setstate_v2(mac, data['state'])
+                end
             else
                 print('INFO: A possibly overriden by user action MAC: ' .. mac .. ' in state: ' .. known_macs[mac]['state'] .. ' scheduled for: ' .. scheduled_macs[mac]['state'] .. ' has been detected, doing nothing')
             end
@@ -271,8 +279,6 @@ function scheduled_tasks()
     -- Scheduling toggling plugs on/off through Google cal
     alarm(scheduler_timer)
 end
-alarm(scheduler_timer, scheduled_tasks)
-scheduled_tasks()
 
 function detect_continuation_data(data)
     if string.match(data, 'CCC$') then
@@ -282,7 +288,62 @@ function detect_continuation_data(data)
 
 end
 
+-- Version 2 specifics
+function create_v2_packet(cmd, seq1, seq2, data)
+    local seq1 = seq1 or 0
+    local seq2 = seq2 or 0
+    local data = data or nil
+    local ar = {}
+    local size = 0
+    if data then
+        size = 13 + 1 + data:len()
+    else
+        size = 13 + 1
+    end
+    table.insert(ar, string.char(256-86)) -- Header
+    table.insert(ar, string.char(256-86)) -- Header
+    table.insert(ar, string.char(0)) -- Protocol Version
+    table.insert(ar, string.char(size)) -- Size
+    table.insert(ar, string.char(0)) -- Size2
+    table.insert(ar, string.char(0)) -- Size3
+    table.insert(ar, string.char(0)) -- Size4
+    table.insert(ar, string.char(seq1)) -- Sequence Number 1
+    table.insert(ar, string.char(seq2)) -- Sequence Number 2
+    table.insert(ar, string.char(0)) -- purposefully 4 bytes of empty checksum
+    table.insert(ar, string.char(0)) -- purposefully 4 bytes of empty checksum
+    table.insert(ar, string.char(0)) -- purposefully 4 bytes of empty checksum
+    table.insert(ar, string.char(0)) -- purposefully 4 bytes of empty checksum
+    table.insert(ar, string.char(cmd)) -- the actual command
+    table.insert(ar, data) -- and the data
+
+    local hash = md5:digest(table.concat(ar))
+    local j = 0
+    for i = 1, #hash do
+        if (i % 4 - 1) == 0 then
+            local c = hash:sub(i,i)
+            ar[9 + j] = c
+            j = j + 1
+        end
+    end
+    return table.concat(ar)
+end
+
+-- Login, somebody shoot me again
+-- Version 2
+function v2_login()
+    local client = socket.try(socket.connect(server_v2, port_v2))
+    local try = socket.newtry(function() client:close() end)
+    local connect_request = create_v2_packet(0) -- 0 is connect_request command
+    try(client:send(connect_request))
+    local answer, err = client:receive('*l')
+    if not answer then
+        print(string.format("Error: %s", err))
+        os.exit(1)
+    end
+end
+
 -- Login, somebody shoot me
+-- version 1
 local date = os.date('%Y%m%d%H%M%S')
 cmd = 'BBBB1'..','..username..','..hashpass(password)..','..date..','..app_id..','..offset..','..version..'EEEE'
 ecmd = encrypt(cmd, masterkey)
@@ -301,15 +362,17 @@ end
 
 -- OMG this is so naive I wanna shoot myself in the foot. Feels like I am back to school writing simple socket programming
 -- ignoring 20 years of advances in the field
+local states = {}
+states['0'] = 'OFF'
+states['1'] = 'ON'
+alarm(scheduler_timer, scheduled_tasks)
+scheduled_tasks()
 while true do
-    local states = {}
-    states['0'] = 'OFF'
-    states['1'] = 'ON'
-    rd, wr, err = socket.select({client}, {}, 10)
+    rd, wr, err = socket.select({client}, {}, 3)
     if not err then
-        status = client:receive('*l')
+        status,err = client:receive('*l')
         if not status then
-            print('ERROR: Something serious has happened. Bailing out')
+            print('ERROR: ' .. err)
             break
         end
         status = decrypt(status, session_key)
@@ -338,7 +401,8 @@ while true do
                     known_macs[mac.MacAddr] = {
                         state = states[tostring(mac.Switcher)],
                         last_change = mac.UpdateTime/1000,
-                        status = mac.Status
+                        status = mac.Status,
+                        version = 1,
                         }
                 end
                 f:close()
