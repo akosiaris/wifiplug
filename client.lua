@@ -321,7 +321,7 @@ function create_v2_packet(cmd, seq1, seq2, data)
     for i = 1, #hash do
         if (i % 4 - 1) == 0 then
             local c = hash:sub(i,i)
-            ar[9 + j] = c
+            ar[10 + j] = c
             j = j + 1
         end
     end
@@ -335,9 +335,24 @@ function v2_login()
     local try = socket.newtry(function() client:close() end)
     local connect_request = create_v2_packet(0) -- 0 is connect_request command
     try(client:send(connect_request))
-    local answer, err = client:receive('*l')
+    local answer, err = client:receive(4)
     if not answer then
         print(string.format("Error: %s", err))
+        os.exit(1)
+    end
+    local size = answer:sub(4,4):byte()
+    -- Probably no need for error now
+    local answer_next = client:receive(size-4)
+    answer = answer .. answer_next
+    local cmdbyte = answer:sub(14,14):byte()
+    local seq1 = answer:sub(8,8):byte()
+    local seq2 = answer:sub(9,9):byte()
+    if cmdbyte == 1 then
+        local d = answer:sub(15)
+        tmp = json.decode(zlib.inflate(d):read('*l'))
+        key = tmp.key
+    else
+        print(string.format("Error: we got command %d instead of 01", cmdbyte))
         os.exit(1)
     end
 end
