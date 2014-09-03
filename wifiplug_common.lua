@@ -1,8 +1,9 @@
 openssl = require('openssl')
 json = require('dkjson')
-require('dumper')
+--require('dumper')
 sessionkey = ''
 des3ecb = openssl.get_cipher('des-ede3')
+md5 = openssl.get_digest('md5')
 -- declare out protocol
 -- Yes this is the master 3DES key used to authenticate users and negotiate 3DES session keys. Secure heh ?
 masterkey = '""OX'..string.char(0x88)..'8(%%yQ'..string.char(0xcb)..'0@6(3)'..string.char(0x11)..'KD'..string.char(0xfe)..'vh'
@@ -78,6 +79,26 @@ function encrypt(p, k)
         c = c..final
     end
     return string.tohex(c)
+end
+
+function getchecksum(msg)
+    local b = msg:bytes()
+    -- clear the actual checksum area
+    b:set_index(9,0)
+    b:set_index(10,0)
+    b:set_index(11,0)
+    b:set_index(12,0)
+
+    -- ByteArray is kind of weird and tostring() returns hex anyway, undoing it first
+    local hash = md5:digest(tostring(b):fromhex())
+    local checksum = ''
+    for i = 1, #hash do
+	    if (i % 4 - 1) == 0 then
+		    local c = hash:sub(i,i)
+		    checksum = checksum .. c
+	    end
+    end
+    return checksum
 end
 
 function detect_correct_decryption(s)
