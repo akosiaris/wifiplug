@@ -6,6 +6,11 @@ local client_config = {
     datafile = 'data.csv',
     server = '0.1.2.3',
     port = '222',
+    username_v2 = 'username',
+    password_v2 = 'password',
+    datafile_v2 = 'data.csv',
+    server_v2 = '0.1.2.3',
+    port_v2 = '222',
     gcal_url = '',
     ical_age = 1800,
 }

@@ -8,11 +8,15 @@ local port = config.port
 local gcal_url = config.gcal_url
 local ical_age = config.ical_age
 
--- You probably don't need to change anything under this line
+local username_v2 = config.username_v2
+local password_v2 = config.password_v2
+local datafile_v2 = config.datafile_v2
+local server_v2 = config.server_v2
+local port_v2 = config.port_v2
+
 local known_macs = {}
 local scheduled_macs = {}
 local icaldata = nil
-timersfile = 'timers.json'
 scheduler_timer = 60 --seconds
 
 openssl = require('openssl')
