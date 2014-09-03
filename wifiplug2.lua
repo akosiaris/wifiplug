@@ -12,6 +12,7 @@ function wifiplug_proto.dissector(buffer, pinfo, tree)
 	else
 		checksum = '(Failed)'
 	end
+	local data = zlib.inflate(buffer(14):string()):read('*l')
 
 	subtree:add(buffer(), "Data size: " .. buffer():len()):set_generated()
 	subtree:add(buffer(0,2), "Header (constant): " .. buffer(0,2):uint())
@@ -22,7 +23,8 @@ function wifiplug_proto.dissector(buffer, pinfo, tree)
 	subtree:add(buffer(8,1), "Sequence Number (2/2): " .. buffer(8,1):uint())
 	subtree:add(buffer(9,4), "Checksum: " .. packet_checksum:string():tohex() .. checksum)
 	subtree:add(buffer(13,1), "Command Byte: " .. buffer(13,1):string():tohex())
-	subtree:add(buffer(14), "Data: " .. buffer(14):string())
+	subtree:add(buffer(14), "Compressed Data: " .. buffer(14):string():tohex())
+	subtree:add(buffer(14), "Uncompress Data: " .. data):set_generated()
 
 	-- populate_tree(plaintext, subtree, buffer)
 end

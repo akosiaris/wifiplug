@@ -1,5 +1,6 @@
 openssl = require('openssl')
 json = require('dkjson')
+zlib = require('zlib')
 --require('dumper')
 sessionkey = ''
 des3ecb = openssl.get_cipher('des-ede3')
