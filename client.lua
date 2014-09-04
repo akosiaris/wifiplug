@@ -32,6 +32,7 @@ local offset = 0 -- This could be derived better, but let's play stupid for now
 local version = 3
 
 local continuation_data = ''
+local key_v2
 
 function fetch_ical()
     local sink
@@ -328,33 +329,51 @@ function create_v2_packet(cmd, seq1, seq2, data)
     return table.concat(ar)
 end
 
--- Login, somebody shoot me again
--- Version 2
-function v2_login()
-    local client = socket.try(socket.connect(server_v2, port_v2))
-    local try = socket.newtry(function() client:close() end)
-    local connect_request = create_v2_packet(0) -- 0 is connect_request command
-    try(client:send(connect_request))
+function parse_v2_next_packet(client)
     local answer, err = client:receive(4)
     if not answer then
         print(string.format("Error: %s", err))
         os.exit(1)
     end
     local size = answer:sub(4,4):byte()
+    size = size + answer:sub(5,5):byte() * 256
+    size = size + answer:sub(6,6):byte() * 256 * 256
+    size = size + answer:sub(7,7):byte() * 256 * 256 * 256
     -- Probably no need for error now
-    local answer_next = client:receive(size-4)
+    local answer_next = client:receive(size - 4)
     answer = answer .. answer_next
     local cmdbyte = answer:sub(14,14):byte()
     local seq1 = answer:sub(8,8):byte()
     local seq2 = answer:sub(9,9):byte()
-    if cmdbyte == 1 then
-        local d = answer:sub(15)
-        tmp = json.decode(zlib.inflate(d):read('*l'))
-        key = tmp.key
+    local tmp = answer:sub(15)
+    data = json.decode(zlib.inflate(tmp):read('*l'))
+    return cmdbyte, seq1, seq2, data
+end
+
+-- Login, somebody shoot me again
+-- Version 2
+function v2_login()
+    local client = socket.try(socket.connect(server_v2, port_v2))
+    local try = socket.newtry(function() client:close() end)
+    local connect_request = create_v2_packet(0x00) -- 0x00 is connect_request command
+    try(client:send(connect_request))
+    cmd, seq1, seq2, data = parse_v2_next_packet(client)
+    if cmd == 1 then
+        key_v2 = data.key
+        data = {
+          locale="en",
+          platform="a",
+          enablePush=false,
+          appid=0,
+          deviceToken="234213124"
+        }
+        local set_parameters = create_v2_packet(0x73, seq1, seq2, data)
+        try(client:send(set_parameters))
     else
         print(string.format("Error: we got command %d instead of 01", cmdbyte))
         os.exit(1)
     end
+    return client, seq1, seq2
 end
 
 -- Login, somebody shoot me
