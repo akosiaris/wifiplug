@@ -290,6 +290,36 @@ function detect_continuation_data(data)
 end
 
 -- Version 2 specifics
+bytearray = { i = 1, s = {} }
+
+mt = {
+        __index = {
+            read = function(self, ...)
+                return table.concat(bytearray.s)
+            end,
+            write = function(self, ...)
+                for i,v in ipairs(arg) do
+                    table.insert(bytearray.s, (v))
+                end
+                return true
+            end,
+            seek = function(self, ...)
+                error 'seek not supported on gzip files'
+            end,
+            lines = function(self, ...)
+                return z:lines(...)
+            end,
+            flush = function(self, ...)
+                return true
+            end,
+            close = function(self, ...)
+                bytearray.s = {}
+                bytearray.i = 1
+                return true
+            end,
+        }
+}
+setmetatable(bytearray, mt)
 function create_v2_packet(cmd, seq1, seq2, data)
     local seq1 = seq1 or 0
     local seq2 = seq2 or 0
@@ -315,6 +345,12 @@ function create_v2_packet(cmd, seq1, seq2, data)
     table.insert(ar, string.char(0)) -- purposefully 4 bytes of empty checksum
     table.insert(ar, string.char(0)) -- purposefully 4 bytes of empty checksum
     table.insert(ar, string.char(cmd)) -- the actual command
+    if data then
+        f = zlib.deflate(bytearray, -1, nil, 15+16)
+        f:write(data)
+        data = bytearray.read()
+        f:close()
+    end
     table.insert(ar, data) -- and the data
 
     local hash = md5:digest(table.concat(ar))
@@ -330,7 +366,7 @@ function create_v2_packet(cmd, seq1, seq2, data)
 end
 
 function parse_v2_next_packet(client)
-    local answer, err = client:receive(4)
+    local answer, err = client:receive(7)
     if not answer then
         print(string.format("Error: %s", err))
         os.exit(1)
@@ -340,7 +376,7 @@ function parse_v2_next_packet(client)
     size = size + answer:sub(6,6):byte() * 256 * 256
     size = size + answer:sub(7,7):byte() * 256 * 256 * 256
     -- Probably no need for error now
-    local answer_next = client:receive(size - 4)
+    local answer_next = client:receive(size - 7)
     answer = answer .. answer_next
     local cmdbyte = answer:sub(14,14):byte()
     local seq1 = answer:sub(8,8):byte()
@@ -367,8 +403,13 @@ function v2_login()
           appid=0,
           deviceToken="234213124"
         }
+        data = json.encode(data)
         local set_parameters = create_v2_packet(0x73, seq1, seq2, data)
         try(client:send(set_parameters))
+        cmd, seq1, seq2, data = parse_v2_next_packet(client)
+        print(cmd)
+        print(seq1)
+        print(seq2)
     else
         print(string.format("Error: we got command %d instead of 01", cmdbyte))
         os.exit(1)
