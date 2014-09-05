@@ -411,17 +411,25 @@ function v2_login()
         os.exit(1)
     end
     -- Now we actually login
-    data = {
-        offset=0,
-        appid=0,
-        pass=password_v2,
-        name=username_v2,
-    }
-    local login = create_v2_packet(0x02, seq1, seq2, data)
-    try(client:send(login))
-    cmd, seq1, seq2, data = parse_v2_next_packet(client)
+    if cmd == 0x74 then
+        data = {
+            offset=0,
+            appid=0,
+            pass=password_v2,
+            name=username_v2,
+        }
+        local login = create_v2_packet(0x02, seq1, seq2, data)
+        try(client:send(login))
+        cmd, seq1, seq2, data = parse_v2_next_packet(client)
+    else
+        print(string.format("Error: we got command %d instead of 01", cmdbyte))
+        os.exit(1)
+    end
     if cmd == 0x03 then
         return client, seq1, seq2
+    else
+        print(string.format("Error: we got command %d instead of 01", cmdbyte))
+        os.exit(1)
     end
     return nil
 end
