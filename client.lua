@@ -290,7 +290,7 @@ function detect_continuation_data(data)
 end
 
 -- Version 2 specifics
-bytearray = { i = 1, s = {} }
+bytearray = { s = {} }
 
 mt = {
         __index = {
@@ -307,14 +307,13 @@ mt = {
                 error 'seek not supported on gzip files'
             end,
             lines = function(self, ...)
-                return z:lines(...)
+                error 'Not yet implemented'
             end,
             flush = function(self, ...)
                 return true
             end,
             close = function(self, ...)
                 bytearray.s = {}
-                bytearray.i = 1
                 return true
             end,
         }
@@ -348,8 +347,8 @@ function create_v2_packet(cmd, seq1, seq2, data)
     if data then
         f = zlib.deflate(bytearray, -1, nil, 15+16)
         f:write(data)
-        data = bytearray.read()
         f:close()
+        data = bytearray.read()
     end
     table.insert(ar, data) -- and the data
 
