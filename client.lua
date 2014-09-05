@@ -293,6 +293,14 @@ function detect_continuation_data(data)
 end
 
 -- Version 2 specifics
+function send_setstate_v2(mac, state)
+    local data = known_macs[mac].obj
+    data.power[1].on=true
+    local try = socket.newtry(function() client_v2:close() end)
+    local control_device = create_v2_packet(0x08, seq1, seq2, data) -- Control Device
+    try(client_v2:send(control_device))
+end
+
 bytearray = { s = {} }
 
 mt = {
@@ -497,6 +505,7 @@ while true do
                                 last_change = 0,
                                 status = plug.onLine,
                                 version = 2,
+                                obj = plug
                                 }
                         end
                         f:close()
@@ -505,6 +514,8 @@ while true do
                     local try = socket.newtry(function() client_v2:close() end)
                     local idlesucc = create_v2_packet(0xFC, seq1, seq2) -- 0x00 is connect_request command
                     try(client_v2:send(idlesucc))
+                elseif cmd_v2 == 0x09 then
+                    print("INFO V2: got ServerControlResult for a mac")
                 else
                     print("ERROR V2: we expected ServerRespondAllDeviceList but got: " .. cmd_v2)
                 end

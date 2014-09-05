@@ -2,7 +2,7 @@
 openssl = require('openssl')
 json = require('dkjson')
 zlib = require('zlib')
-require('dumper')
+--require('dumper')
 sessionkey = ''
 des3ecb = openssl.get_cipher('des-ede3')
 md5 = openssl.get_digest('md5')
