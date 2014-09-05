@@ -333,6 +333,7 @@ function create_v2_packet(cmd, seq1, seq2, data)
         f:write(data)
         f:close()
         data = bytearray.read()
+        bytearray:close()
         size = 13 + 1 + data:len()
     else
         size = 13 + 1
