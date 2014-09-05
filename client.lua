@@ -277,7 +277,8 @@ function scheduled_tasks()
     synchronize_states()
     send_idle(client, session_key)
     local getalldevicelist = create_v2_packet(0x04, seq1, seq2)
-    try(client:send(getalldevicelist))
+    local try = socket.newtry(function() client_v2:close() end)
+    try(client_v2:send(getalldevicelist))
     write_status_files()
     -- Scheduling toggling plugs on/off through Google cal
     alarm(scheduler_timer)
@@ -369,7 +370,7 @@ end
 function parse_v2_next_packet(client)
     local answer, err = client:receive(7)
     if not answer then
-        print(string.format("Error: %s", err))
+        print(string.format("ERROR while receiving packet for V2: %s", err))
         os.exit(1)
     end
     local size = answer:sub(4,4):byte()
@@ -396,6 +397,7 @@ function v2_login()
     try(client:send(connect_request))
     cmd, seq1, seq2, data = parse_v2_next_packet(client)
     if cmd == 0x01 then
+        print("INFO V2: We got successful permit login")
         key_v2 = data.key
         data = {
           locale="en",
@@ -413,6 +415,7 @@ function v2_login()
     end
     -- Now we actually login
     if cmd == 0x74 then
+        print("INFO V2: We got succesful set parameters")
         data = {
             offset=0,
             appid=0,
@@ -427,6 +430,7 @@ function v2_login()
         os.exit(1)
     end
     if cmd == 0x03 then
+        print("INFO V2: We succesfully logged in (finally...)")
         return client, seq1, seq2
     else
         print(string.format("Error: we got command %d instead of 01", cmd))
@@ -462,53 +466,93 @@ client_v2, seq1, seq2 = v2_login()
 local states = {}
 states['0'] = 'OFF'
 states['1'] = 'ON'
+states['false'] = 'OFF'
+states['true'] = 'ON'
 alarm(scheduler_timer, scheduled_tasks)
 scheduled_tasks()
 while true do
     rd, wr, err = socket.select({client, client_v2}, {}, 5)
-    if not err then
-        status,err = client:receive('*l')
-        if not status then
-            print('ERROR: ' .. err)
-            break
-        end
-        status = decrypt(status, session_key)
-        if detect_continuation_data(status) then
-            continuation_data = continuation_data .. string.gsub(status,'^BBBB(.*)CCC$', '%1')
-        elseif continuation_data ~= '' then
-            status = continuation_data .. string.gsub(status, '^BBBB', '')
-            continuation_data = ''
-        end
-        if continuation_data == '' then
-            local obj, pos, err = json.decode(string.gsub(status, '^BBBB({.*})EEEE$', '%1'))
-            if not err then
-                local now = os.date('%Y-%m-%d %H:%M:%S')
-                local f = assert(io.open(datafile, 'a'))
-                for i,mac in pairs(obj.macList) do
-                    -- This is going to be highly inefficient but with packets coming every 15-20 seconds,
-                    -- it does not really matter
-                    local t = { now,
-                         mac.MacAddr,
-                         os.date('%Y-%m-%d %H:%M:%S', mac.UpdateTime/1000),
-                         tostring(mac.Status),
-                         states[tostring(mac.Switcher)]
-                         }
-                    print('INFO: Got status: ' .. toCSV(t))
-                    f:write(toCSV(t)..'\n')
-                    known_macs[mac.MacAddr] = {
-                        state = states[tostring(mac.Switcher)],
-                        last_change = mac.UpdateTime/1000,
-                        status = mac.Status,
-                        version = 1,
-                        }
+    if err and not err == 'timeout' then
+        print("ERROR: while select() we got: " .. err)
+    else
+        for i,v in ipairs(rd) do
+            if v == client_v2 then
+                cmd_v2, seq1, seq2, data = parse_v2_next_packet(client_v2)
+                if cmd_v2 == 0x05 then
+                        local now = os.date('%Y-%m-%d %H:%M:%S')
+                        local f = assert(io.open(datafile, 'a'))
+                        for i,plug in pairs(data) do
+                            -- This is going to be highly inefficient but with packets coming every 15-20 seconds,
+                            -- it does not really matter
+                            local t = { now,
+                                 plug.pid,
+                                 os.date('%Y-%m-%d %H:%M:%S', 0),
+                                 tostring(plug.onLine),
+                                 states[tostring(plug.power[1].on)]
+                                 }
+                            print('INFO V2: Got status: ' .. toCSV(t))
+                            f:write(toCSV(t)..'\n')
+                            known_macs[plug.pid] = {
+                                state = states[tostring(plug.power[1].on)],
+                                last_change = 0,
+                                status = plug.onLine,
+                                version = 2,
+                                }
+                        end
+                        f:close()
+                elseif cmd_v2 == 0xFB then
+                    print("INFO V2: got ServerIdle, replying with IdleSucc")
+                    local try = socket.newtry(function() client_v2:close() end)
+                    local idlesucc = create_v2_packet(0xFC, seq1, seq2) -- 0x00 is connect_request command
+                    try(client_v2:send(idlesucc))
+                else
+                    print("ERROR V2: we expected ServerRespondAllDeviceList but got: " .. cmd_v2)
                 end
-                f:close()
-            elseif detect_setstate(status) then
-                print('INFO: Detected an OK reply to a state change command')
-            elseif detect_idle(status) then
-                print('INFO: Detected an OK reply to a IDLE command')
-            else
-                print('WARNING: Unexpected message received:'..status)
+            elseif v == client then
+                status,err = client:receive('*l')
+                if not status then
+                    print('ERROR: ' .. err)
+                    break
+                end
+                status = decrypt(status, session_key)
+                if detect_continuation_data(status) then
+                    continuation_data = continuation_data .. string.gsub(status,'^BBBB(.*)CCC$', '%1')
+                elseif continuation_data ~= '' then
+                    status = continuation_data .. string.gsub(status, '^BBBB', '')
+                    continuation_data = ''
+                end
+                if continuation_data == '' then
+                    local obj, pos, err = json.decode(string.gsub(status, '^BBBB({.*})EEEE$', '%1'))
+                    if not err then
+                        local now = os.date('%Y-%m-%d %H:%M:%S')
+                        local f = assert(io.open(datafile, 'a'))
+                        for i,mac in pairs(obj.macList) do
+                            -- This is going to be highly inefficient but with packets coming every 15-20 seconds,
+                            -- it does not really matter
+                            local t = { now,
+                                 mac.MacAddr,
+                                 os.date('%Y-%m-%d %H:%M:%S', mac.UpdateTime/1000),
+                                 tostring(mac.Status),
+                                 states[tostring(mac.Switcher)]
+                                 }
+                            print('INFO: Got status: ' .. toCSV(t))
+                            f:write(toCSV(t)..'\n')
+                            known_macs[mac.MacAddr] = {
+                                state = states[tostring(mac.Switcher)],
+                                last_change = mac.UpdateTime/1000,
+                                status = mac.Status,
+                                version = 1,
+                                }
+                        end
+                        f:close()
+                    elseif detect_setstate(status) then
+                        print('INFO: Detected an OK reply to a state change command')
+                    elseif detect_idle(status) then
+                        print('INFO: Detected an OK reply to a IDLE command')
+                    else
+                        print('WARNING: Unexpected message received:'..status)
+                    end
+                end
             end
         end
     end
