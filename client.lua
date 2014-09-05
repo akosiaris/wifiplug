@@ -17,7 +17,7 @@ local port_v2 = config.port_v2
 local known_macs = {}
 local scheduled_macs = {}
 local icaldata = nil
-scheduler_timer = 60 --seconds
+scheduler_timer = 30 --seconds
 
 openssl = require('openssl')
 json = require('dkjson')
@@ -276,6 +276,8 @@ function scheduled_tasks()
     end
     synchronize_states()
     send_idle(client, session_key)
+    local getalldevicelist = create_v2_packet(0x04, seq1, seq2)
+    try(client:send(getalldevicelist))
     write_status_files()
     -- Scheduling toggling plugs on/off through Google cal
     alarm(scheduler_timer)
@@ -326,6 +328,7 @@ function create_v2_packet(cmd, seq1, seq2, data)
     local ar = {}
     local size = 0
     if data then
+        data = json.encode(data)
         f = zlib.deflate(bytearray, -1, nil, 15+16)
         f:write(data)
         f:close()
@@ -391,7 +394,7 @@ function v2_login()
     local connect_request = create_v2_packet(0x00) -- 0x00 is connect_request command
     try(client:send(connect_request))
     cmd, seq1, seq2, data = parse_v2_next_packet(client)
-    if cmd == 1 then
+    if cmd == 0x01 then
         key_v2 = data.key
         data = {
           locale="en",
@@ -400,18 +403,27 @@ function v2_login()
           appid=0,
           deviceToken="234213124"
         }
-        data = json.encode(data)
         local set_parameters = create_v2_packet(0x73, seq1, seq2, data)
         try(client:send(set_parameters))
         cmd, seq1, seq2, data = parse_v2_next_packet(client)
-        print(cmd)
-        print(seq1)
-        print(seq2)
     else
         print(string.format("Error: we got command %d instead of 01", cmdbyte))
         os.exit(1)
     end
-    return client, seq1, seq2
+    -- Now we actually login
+    data = {
+        offset=0,
+        appid=0,
+        pass=password_v2,
+        name=username_v2,
+    }
+    local login = create_v2_packet(0x02, seq1, seq2, data)
+    try(client:send(login))
+    cmd, seq1, seq2, data = parse_v2_next_packet(client)
+    if cmd == 0x03 then
+        return client, seq1, seq2
+    end
+    return nil
 end
 
 -- Login, somebody shoot me
@@ -432,6 +444,10 @@ else
     os.exit(1)
 end
 
+-- Login, somebody shoot me again
+-- Version 2
+client_v2, seq1, seq2 = v2_login()
+
 -- OMG this is so naive I wanna shoot myself in the foot. Feels like I am back to school writing simple socket programming
 -- ignoring 20 years of advances in the field
 local states = {}
@@ -440,7 +456,7 @@ states['1'] = 'ON'
 alarm(scheduler_timer, scheduled_tasks)
 scheduled_tasks()
 while true do
-    rd, wr, err = socket.select({client}, {}, 3)
+    rd, wr, err = socket.select({client, client_v2}, {}, 5)
     if not err then
         status,err = client:receive('*l')
         if not status then
