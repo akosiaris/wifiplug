@@ -326,6 +326,10 @@ function create_v2_packet(cmd, seq1, seq2, data)
     local ar = {}
     local size = 0
     if data then
+        f = zlib.deflate(bytearray, -1, nil, 15+16)
+        f:write(data)
+        f:close()
+        data = bytearray.read()
         size = 13 + 1 + data:len()
     else
         size = 13 + 1
@@ -344,12 +348,6 @@ function create_v2_packet(cmd, seq1, seq2, data)
     table.insert(ar, string.char(0)) -- purposefully 4 bytes of empty checksum
     table.insert(ar, string.char(0)) -- purposefully 4 bytes of empty checksum
     table.insert(ar, string.char(cmd)) -- the actual command
-    if data then
-        f = zlib.deflate(bytearray, -1, nil, 15+16)
-        f:write(data)
-        f:close()
-        data = bytearray.read()
-    end
     table.insert(ar, data) -- and the data
 
     local hash = md5:digest(table.concat(ar))
