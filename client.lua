@@ -408,7 +408,7 @@ function v2_login()
         try(client:send(set_parameters))
         cmd, seq1, seq2, data = parse_v2_next_packet(client)
     else
-        print(string.format("Error: we got command %d instead of 01", cmdbyte))
+        print(string.format("Error: we got command %d instead of 01", cmd))
         os.exit(1)
     end
     -- Now we actually login
@@ -423,13 +423,13 @@ function v2_login()
         try(client:send(login))
         cmd, seq1, seq2, data = parse_v2_next_packet(client)
     else
-        print(string.format("Error: we got command %d instead of 01", cmdbyte))
+        print(string.format("Error: we got command %d instead of 01", cmd))
         os.exit(1)
     end
     if cmd == 0x03 then
         return client, seq1, seq2
     else
-        print(string.format("Error: we got command %d instead of 01", cmdbyte))
+        print(string.format("Error: we got command %d instead of 01", cmd))
         os.exit(1)
     end
     return nil
