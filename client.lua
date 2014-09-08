@@ -492,15 +492,16 @@ while true do
                         for i,plug in pairs(data) do
                             -- This is going to be highly inefficient but with packets coming every 15-20 seconds,
                             -- it does not really matter
+                            local pid = plug.pid:sub(3)
                             local t = { now,
-                                 plug.pid,
+                                 pid,
                                  os.date('%Y-%m-%d %H:%M:%S', 0),
                                  tostring(plug.onLine),
                                  states[tostring(plug.power[1].on)]
                                  }
                             print('INFO V2: Got status: ' .. toCSV(t))
                             f:write(toCSV(t)..'\n')
-                            known_macs[plug.pid] = {
+                            known_macs[pid] = {
                                 state = states[tostring(plug.power[1].on)],
                                 last_change = 0,
                                 status = plug.onLine,
