@@ -534,7 +534,7 @@ while true do
                             if known_macs[id] then
                                 known_macs[id].last_change = os.time()
                                 known_macs[id].status = data.onLine
-                                known_macs[id].state = states[tostring(plug.power[1].on)]
+                                known_macs[id].state = states[tostring(data.power[1].on)]
                                 known_macs[id].obj = data
                             end
                 else
