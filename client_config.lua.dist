@@ -9,7 +9,6 @@ local client_config = {
     port = '222',
     username_v2 = 'username',
     password_v2 = 'password',
-    datafile_v2 = 'data.csv',
     server_v2 = '0.1.2.3',
     port_v2 = '222',
     gcal_url = '',

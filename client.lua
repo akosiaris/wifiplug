@@ -11,7 +11,6 @@ local ical_age = config.ical_age
 
 local username_v2 = config.username_v2
 local password_v2 = config.password_v2
-local datafile_v2 = config.datafile_v2
 local server_v2 = config.server_v2
 local port_v2 = config.port_v2
 
@@ -132,7 +131,7 @@ end
 
 function synchronize_states()
     -- We iterate over all non-scheduled MACs
-    local f = assert(io.open(datafile, 'w'))
+    local f = assert(io.open(statefile, 'w'))
     f:write(json.encode(known_macs))
     f:close()
     for mac, data in pairs(known_macs) do
