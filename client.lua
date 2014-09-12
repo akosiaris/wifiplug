@@ -299,7 +299,6 @@ end
 function send_setstate_v2(mac, state)
     local data = known_macs[mac].obj
     data.power[1].on = true
-    data.last_change = os.time()
     local try = socket.newtry(function() client_v2:close() end)
     local control_device = create_v2_packet(0x08, seq1, seq2, data) -- Control Device
     try(client_v2:send(control_device))
@@ -501,20 +500,20 @@ while true do
                         for i,plug in pairs(data) do
                             -- This is going to be highly inefficient but with packets coming every 15-20 seconds,
                             -- it does not really matter
-                            local pid = plug.pid:sub(3)
+                            local id = plug.id:sub(3)
                             local last_change = 0
-                            if known_macs[pid] then
-                                last_change = known_macs[pid].last_change
+                            if known_macs[id] then
+                                last_change = known_macs[id].last_change
                             end
                             local t = { now,
-                                 pid,
+                                 id,
                                  os.date('%Y-%m-%d %H:%M:%S', last_change),
                                  tostring(plug.onLine),
                                  states[tostring(plug.power[1].on)]
                                  }
                             print('INFO V2: Got status: ' .. toCSV(t))
                             f:write(toCSV(t)..'\n')
-                            known_macs[pid] = {
+                            known_macs[id] = {
                                 state = states[tostring(plug.power[1].on)],
                                 last_change = last_change,
                                 status = plug.onLine,
@@ -530,6 +529,10 @@ while true do
                     try(client_v2:send(idlesucc))
                 elseif cmd_v2 == 0x09 then
                     print("INFO V2: got ServerControlResult for a mac")
+                            local id = data.id:sub(3)
+                            if known_macs[id] then
+                                known_macs[id].last_change = os.time()
+                            end
                 else
                     print("ERROR V2: we expected ServerRespondAllDeviceList but got: " .. cmd_v2)
                 end
