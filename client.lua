@@ -3,6 +3,7 @@ config = require('client_config')
 local username = config.username
 local password = config.password
 local datafile = config.datafile
+local statefile = config.statefile
 local server = config.server
 local port = config.port
 local gcal_url = config.gcal_url
@@ -131,6 +132,9 @@ end
 
 function synchronize_states()
     -- We iterate over all non-scheduled MACs
+    local f = assert(io.open(datafile, 'w'))
+    f:write(json.encode(known_macs))
+    f:close()
     for mac, data in pairs(known_macs) do
         if data['status'] and not scheduled_macs[mac] and data['state'] == 'OFF' then
             print('INFO: A non-scheduled MAC was found in OFF state: '.. mac .. ' Turning ON')

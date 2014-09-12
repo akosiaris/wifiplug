@@ -4,6 +4,7 @@ local client_config = {
     username = 'username',
     password = 'password',
     datafile = 'data.csv',
+    statefile = 'state.json',
     server = '0.1.2.3',
     port = '222',
     username_v2 = 'username',
