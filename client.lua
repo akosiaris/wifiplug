@@ -149,9 +149,9 @@ function synchronize_states()
         if known_macs[mac] and known_macs[mac]['state'] ~= data['state'] and known_macs[mac]['status'] then
             if known_macs[mac]['last_change'] < data['start'] then
                 print('INFO: A schedule for MAC: '..mac..' which was: ' .. known_macs[mac]['state'] .. ' to turn: '.. data['state'] ..' was found')
-                if data['version'] == 1 then
+                if known_macs[mac]['version'] == 1 then
                     send_setstate(mac, data['state'], session_key)
-                elseif data['version'] == 2 then
+                elseif known_macs[mac]['version'] == 2 then
                     send_setstate_v2(mac, data['state'])
                 end
             else
@@ -297,8 +297,9 @@ end
 
 -- Version 2 specifics
 function send_setstate_v2(mac, state)
+    local states = { ON=true, OFF=false }
     local data = known_macs[mac].obj
-    data.power[1].on = true
+    data.power[1].on = states[state]
     local try = socket.newtry(function() client_v2:close() end)
     local control_device = create_v2_packet(0x08, seq1, seq2, data) -- Control Device
     try(client_v2:send(control_device))
