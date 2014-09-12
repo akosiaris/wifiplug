@@ -298,7 +298,8 @@ end
 -- Version 2 specifics
 function send_setstate_v2(mac, state)
     local data = known_macs[mac].obj
-    data.power[1].on=true
+    data.power[1].on = true
+    data.last_change = os.time()
     local try = socket.newtry(function() client_v2:close() end)
     local control_device = create_v2_packet(0x08, seq1, seq2, data) -- Control Device
     try(client_v2:send(control_device))
@@ -471,6 +472,11 @@ end
 -- Login, somebody shoot me again
 -- Version 2
 client_v2, seq1, seq2 = v2_login()
+local f = io.open(statefile, 'r')
+if f then
+    known_macs = json.decode(f:read('*all'))
+    f:close()
+end
 
 -- OMG this is so naive I wanna shoot myself in the foot. Feels like I am back to school writing simple socket programming
 -- ignoring 20 years of advances in the field
@@ -496,9 +502,13 @@ while true do
                             -- This is going to be highly inefficient but with packets coming every 15-20 seconds,
                             -- it does not really matter
                             local pid = plug.pid:sub(3)
+                            local last_change = 0
+                            if known_macs[pid] then
+                                last_change = known_macs[pid].last_change
+                            end
                             local t = { now,
                                  pid,
-                                 os.date('%Y-%m-%d %H:%M:%S', 0),
+                                 os.date('%Y-%m-%d %H:%M:%S', last_change),
                                  tostring(plug.onLine),
                                  states[tostring(plug.power[1].on)]
                                  }
@@ -506,7 +516,7 @@ while true do
                             f:write(toCSV(t)..'\n')
                             known_macs[pid] = {
                                 state = states[tostring(plug.power[1].on)],
-                                last_change = 0,
+                                last_change = last_change,
                                 status = plug.onLine,
                                 version = 2,
                                 obj = plug
