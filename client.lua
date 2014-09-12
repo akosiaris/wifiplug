@@ -533,6 +533,9 @@ while true do
                             local id = data.id:sub(3)
                             if known_macs[id] then
                                 known_macs[id].last_change = os.time()
+                                known_macs[id].status = data.onLine
+                                known_macs[id].state = states[tostring(plug.power[1].on)],
+                                known_macs[id].obj = data
                             end
                 else
                     print("ERROR V2: we expected ServerRespondAllDeviceList but got: " .. cmd_v2)
