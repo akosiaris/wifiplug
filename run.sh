@@ -2,6 +2,6 @@
 
 while true
 do
-	lua client.lua
+	lua -e "io.stdout:setvbuf 'no'" client.lua
 	sleep 45
 done
