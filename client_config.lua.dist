@@ -13,5 +13,9 @@ local client_config = {
     port_v2 = '222',
     gcal_url = '',
     ical_age = 1800,
+    username_v3 = 'username',
+    password_v3 = 'password',
+    server_v3 = 'wifiplugapi.co.uk',
+    port_v3 = 3081,
 }
 return client_config

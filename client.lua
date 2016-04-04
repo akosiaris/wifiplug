@@ -14,6 +14,11 @@ local password_v2 = config.password_v2
 local server_v2 = config.server_v2
 local port_v2 = config.port_v2
 
+local username_v3 = config.username_v3
+local password_v3 = config.password_v3
+local server_v3 = config.server_v3
+local port_v3 = config.port_v3
+
 local known_macs = {}
 local scheduled_macs = {}
 local icaldata = nil
@@ -141,6 +146,8 @@ function synchronize_states()
                 send_setstate(mac, 'ON', session_key)
             elseif data['version'] == 2 then
                 send_setstate_v2(mac, 'ON')
+            elseif data['version'] == 3 then
+                send_setstate_v3(mac, 'ON')
             end
         end
     end
@@ -153,6 +160,8 @@ function synchronize_states()
                     send_setstate(mac, data['state'], session_key)
                 elseif known_macs[mac]['version'] == 2 then
                     send_setstate_v2(mac, data['state'])
+                elseif known_macs[mac]['version'] == 3 then
+                    send_setstate_v3(mac, data['state'])
                 end
             else
                 print('INFO: A possibly overriden by user action MAC: ' .. mac .. ' in state: ' .. known_macs[mac]['state'] .. ' scheduled for: ' .. scheduled_macs[mac]['state'] .. ' has been detected, doing nothing')
@@ -282,6 +291,7 @@ function scheduled_tasks()
     local getalldevicelist = create_v2_packet(0x04, seq1, seq2)
     local try = socket.newtry(function() client_v2:close() end)
     try(client_v2:send(getalldevicelist))
+    v3_getdevices()
     write_status_files()
     -- Scheduling toggling plugs on/off through Google cal
     alarm(scheduler_timer)
@@ -451,6 +461,99 @@ function v2_login()
     return nil
 end
 
+function v3_login()
+    login_str = string.format('https://%s:%d/zcloud/api/user_login', server_v3, port_v3)
+    local sink, err = https.request(login_str, string.format('username=%s&password=%s', username_v3, password_v3))
+    if not sink then
+        print(err)
+        return nil
+    end
+    print('INFO V3: Succesful login, got a token')
+    res = json.decode(sink)
+    return res.token
+end
+
+function v3_getdevices()
+    local states = {}
+    states['0'] = 'OFF'
+    states['1'] = 'ON'
+    states['false'] = 'OFF'
+    states['true'] = 'ON'
+    get_devices_url = string.format('https://%s:%d/zcloud/api/device_query?token=%s', server_v3, port_v3, token_v3)
+    local sink, err = https.request(get_devices_url)
+    if not sink then
+        print(err)
+        return nil
+    end
+    print('INFO V3: Got device list')
+    local reply = json.decode(sink)
+    local devices = reply.deviceList
+    local now = os.date('%Y-%m-%d %H:%M:%S')
+    local f = assert(io.open(datafile, 'a'))
+    for i,plug in pairs(devices) do
+        -- This is going to be highly inefficient but with packets coming every 15-20 seconds,
+        -- it does not really matter
+        local id = plug.id:sub(3)
+        local last_change = 0
+        if known_macs[id] then
+            last_change = known_macs[id].last_change
+        end
+        local t = { now,
+             id,
+             os.date('%Y-%m-%d %H:%M:%S', last_change),
+             tostring(plug.onLine),
+             states[tostring(plug.power[1].on)],
+             3,
+             plug.powerWatt,
+             plug.voltage,
+             plug.current,
+             plug.powerFactor,
+             plug.electricEnergy,
+        }
+        print('INFO V3: Got status: ' .. toCSV(t))
+        f:write(toCSV(t)..'\n')
+        known_macs[id] = {
+            state = states[tostring(plug.power[1].on)],
+            last_change = last_change,
+            status = plug.onLine,
+            version = 3,
+            powerWatt = plug.powerWatt,
+            voltage = plug.voltage,
+            current = plug.current,
+            powerFactor = plug.powerFactor,
+            electricEnergy = plug.electricEnergy,
+            obj = plug
+        }
+    end
+    f:close()
+end
+
+function send_setstate_v3(plug, state)
+    local states = {}
+    states['0'] = 'OFF'
+    states['1'] = 'ON'
+    states['false'] = 'OFF'
+    states['true'] = 'ON'
+    local translate = { ON='true', OFF='false' }
+    control_plug_url = string.format('https://%s:%d/zcloud/api/device_control', server_v3, port_v3)
+    body = string.format('token=%s&device_id=00%s&on=%s', token_v3, plug, translate[state])
+    local sink, err = https.request(control_plug_url, body)
+    if not sink then
+        print(err)
+        return nil
+    end
+    print('INFO V3: Sent plug control and got answer back')
+    res = json.decode(sink)
+    data = res.status
+    local id = data.id:sub(3)
+    if known_macs[id] then
+        known_macs[id].last_change = os.time()
+        known_macs[id].status = data.onLine
+        known_macs[id].state = states[tostring(data.power[1].on)]
+        known_macs[id].obj = data
+    end
+end
+
 -- Login, somebody shoot me
 -- version 1
 local date = os.date('%Y%m%d%H%M%S')
@@ -472,6 +575,11 @@ end
 -- Login, somebody shoot me again
 -- Version 2
 client_v2, seq1, seq2 = v2_login()
+
+-- Login, er this way better
+-- Version 3
+token_v3 = v3_login()
+
 local f = io.open(statefile, 'r')
 if f then
     known_macs = json.decode(f:read('*all'))
@@ -510,7 +618,13 @@ while true do
                                  id,
                                  os.date('%Y-%m-%d %H:%M:%S', last_change),
                                  tostring(plug.onLine),
-                                 states[tostring(plug.power[1].on)]
+                                 states[tostring(plug.power[1].on)],
+                                 2,
+                                 0,
+                                 0,
+                                 0,
+                                 0,
+                                 0,
                                  }
                             print('INFO V2: Got status: ' .. toCSV(t))
                             f:write(toCSV(t)..'\n')
@@ -565,7 +679,13 @@ while true do
                                  mac.MacAddr,
                                  os.date('%Y-%m-%d %H:%M:%S', mac.UpdateTime/1000),
                                  tostring(mac.Status),
-                                 states[tostring(mac.Switcher)]
+                                 states[tostring(mac.Switcher)],
+                                 1,
+                                 0,
+                                 0,
+                                 0,
+                                 0,
+                                 0,
                                  }
                             print('INFO: Got status: ' .. toCSV(t))
                             f:write(toCSV(t)..'\n')
