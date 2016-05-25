@@ -216,6 +216,7 @@ function escapeCSV (s)
 end
 
 function write_status_files()
+    local faces = {TRUE = config.happy_face_png, FALSE = config.sad_face_png }
     for mac, data in pairs(known_macs) do
                 local f = assert(io.open('plugstatus/'..mac..'.html', 'w'))
                 local t = f:write(string.format([[
@@ -240,13 +241,13 @@ function write_status_files()
   | plug status: <span class="%s">%s</span>
   -->
   </h1>
-  <img src="%s.png" alt="%s state image">
+  <img src="%s" alt="%s state image">
   Note: The page is automatically updated with new data every 1 minute
   </body>
   </html>]], mac,
            tostring(data['status']):upper(), tostring(data['status']):upper(),
            data['state'], data['state'],
-           tostring(data['status']):upper(), tostring(data['status']):upper()))
+           faces[tostring(data['status']):upper()], tostring(data['status']):upper()))
         f:close()
     end
 end

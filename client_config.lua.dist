@@ -17,5 +17,7 @@ local client_config = {
     password_v3 = 'password',
     server_v3 = 'wifiplugapi.co.uk',
     port_v3 = 3081,
+    happy_face_png = 'http://url-to-image',
+    sad_face_png = 'https://url-to-image',
 }
 return client_config
