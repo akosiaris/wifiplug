@@ -584,6 +584,9 @@ token_v3 = v3_login()
 local f = io.open(statefile, 'r')
 if f then
     known_macs = json.decode(f:read('*all'))
+    if not known_macs then
+        known_macs = {}
+    end
     f:close()
 end
 
