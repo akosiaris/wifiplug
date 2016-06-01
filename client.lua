@@ -148,7 +148,7 @@ function synchronize_states()
             elseif data['version'] == 2 then
                 send_setstate_v2(mac, 'ON')
             elseif data['version'] == 3 then
-                send_setstate_v3(mac, 'ON')
+                send_setstate_v3(mac, 'ON', data['token'])
             end
         end
     end
@@ -162,7 +162,7 @@ function synchronize_states()
                 elseif known_macs[mac]['version'] == 2 then
                     send_setstate_v2(mac, data['state'])
                 elseif known_macs[mac]['version'] == 3 then
-                    send_setstate_v3(mac, data['state'])
+                    send_setstate_v3(mac, data['state'], known_macs[mac]['token'])
                 end
             else
                 print('INFO: A possibly overriden by user action MAC: ' .. mac .. ' in state: ' .. known_macs[mac]['state'] .. ' scheduled for: ' .. scheduled_macs[mac]['state'] .. ' has been detected, doing nothing')
@@ -472,7 +472,7 @@ function v3_login(username_v3, password_v3)
         print(err)
         return nil
     end
-    print('INFO V3: Succesful login, got a token')
+    print('INFO V3: Succesful login, got a token:' .. username_v3)
     res = json.decode(sink)
     return res.token
 end
@@ -526,7 +526,8 @@ function v3_getdevices(token_v3)
             current = plug.current,
             powerFactor = plug.powerFactor,
             electricEnergy = plug.electricEnergy,
-            obj = plug
+            obj = plug,
+            token = token_v3
         }
     end
     f:close()
