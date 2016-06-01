@@ -14,6 +14,7 @@ local password_v2 = config.password_v2
 local server_v2 = config.server_v2
 local port_v2 = config.port_v2
 
+local accounts_v3 = config.accounts_v3
 local username_v3 = config.username_v3
 local password_v3 = config.password_v3
 local server_v3 = config.server_v3
@@ -292,7 +293,9 @@ function scheduled_tasks()
     local getalldevicelist = create_v2_packet(0x04, seq1, seq2)
     local try = socket.newtry(function() client_v2:close() end)
     try(client_v2:send(getalldevicelist))
-    v3_getdevices()
+    for i, v in ipairs(tokens_v3) do
+        v3_getdevices(v)
+    end
     write_status_files()
     -- Scheduling toggling plugs on/off through Google cal
     alarm(scheduler_timer)
@@ -462,7 +465,7 @@ function v2_login()
     return nil
 end
 
-function v3_login()
+function v3_login(username_v3, password_v3)
     login_str = string.format('https://%s:%d/zcloud/api/user_login', server_v3, port_v3)
     local sink, err = https.request(login_str, string.format('username=%s&password=%s', username_v3, password_v3))
     if not sink then
@@ -474,7 +477,7 @@ function v3_login()
     return res.token
 end
 
-function v3_getdevices()
+function v3_getdevices(token_v3)
     local states = {}
     states['0'] = 'OFF'
     states['1'] = 'ON'
@@ -486,7 +489,7 @@ function v3_getdevices()
         print(err)
         return nil
     end
-    print('INFO V3: Got device list')
+    print('INFO V3: Got device list for token: ' .. token_v3)
     local reply = json.decode(sink)
     local devices = reply.deviceList
     local now = os.date('%Y-%m-%d %H:%M:%S')
@@ -511,7 +514,7 @@ function v3_getdevices()
              plug.powerFactor,
              plug.electricEnergy,
         }
-        print('INFO V3: Got status: ' .. toCSV(t))
+        print('INFO V3: Token: ' .. token_v3 .. ' Got status: ' .. toCSV(t))
         f:write(toCSV(t)..'\n')
         known_macs[id] = {
             state = states[tostring(plug.power[1].on)],
@@ -529,7 +532,7 @@ function v3_getdevices()
     f:close()
 end
 
-function send_setstate_v3(plug, state)
+function send_setstate_v3(plug, state, token_v3)
     local states = {}
     states['0'] = 'OFF'
     states['1'] = 'ON'
@@ -543,7 +546,7 @@ function send_setstate_v3(plug, state)
         print(err)
         return nil
     end
-    print('INFO V3: Sent plug control and got answer back')
+    print('INFO V3: Sent plug control and got answer back for token: ' .. token_v3)
     res = json.decode(sink)
     data = res.status
     local id = data.id:sub(3)
@@ -579,7 +582,10 @@ client_v2, seq1, seq2 = v2_login()
 
 -- Login, er this way better
 -- Version 3
-token_v3 = v3_login()
+tokens_v3 = {}
+for i, v in ipairs(accounts_v3) do
+    tokens_v3[i] = v3_login(v['username'], v['password'])
+end
 
 local f = io.open(statefile, 'r')
 if f then

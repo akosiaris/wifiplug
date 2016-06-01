@@ -13,6 +13,11 @@ local client_config = {
     port_v2 = '222',
     gcal_url = '',
     ical_age = 1800,
+    accounts_v3 = {
+        { username = 'username1', password = 'password1', },
+        { username = 'username2', password = 'password2', },
+        { username = 'username3', password = 'password3', },
+    },
     username_v3 = 'username',
     password_v3 = 'password',
     server_v3 = 'wifiplugapi.co.uk',
