@@ -9,8 +9,16 @@ research purposes but probably not ready to be used in production environments.
 
 The wifiplug term is the property of wifiplug LTD
 
-Brief explanation of the protocol
-=================================
+The project has grown organically from a Wireshark Lua Dissector for the V1 protocol, to an example client
+for the Version 1 protocol.
+Then support was added for scheduling state changes via a Google Calendar. Later on, Version 2 was released,
+was reverse engineered and a Wireshark Lua Dissector was written for that one as well, and the client was updated.
+Finally Version 3 (known as Wifiplug POWER) of the wifiplug protocol was released. That one did not need to be
+reverse engineered since it's over HTTP and documentation for that one exists and is provided for free by Wifiplug
+LTD. Support for Version 3 was added without a dissector being written
+
+Brief explanation of the V1 protocol
+====================================
 
 The wifiplug Android application protocol was discovered and evaluated after some interest in the wifiplug
 routine installation of the wifiplug Android application. This is the protocol used between
@@ -37,6 +45,17 @@ Commands are (for some reason) enclosed in the strings 'BBBB' (presumably BEGIN)
 identified by a single integer (1,2,3 etc). So for example 5 is the IDLE command, 1 is the LOGIN command etc
 The server responds to these commands by sending the number corresponding to the sent command suffixed with
 the string '+OK' and enclosed in the 'BBBB', 'EEEE' strings.
+
+Brief explanation of the V2 protocol
+====================================
+
+The V2 protocol continues on the same spirit as the first version, however is way more compact, has builtin parity checks
+is _NOT_ encrypted at all and has commands as bytes instead of using the 'BBBB' and 'EEEE' strings.
+
+Brief explanation of the V3 protocol
+====================================
+
+The V3 protocol is clearly a complete rewrite. It's over HTTP and documentation is provided freely by wifiplug LTD.
 
 States of a wifiplug
 ====================
@@ -76,7 +95,7 @@ The client application simulates a few very specific aspects of the Android appl
 is capable of logging in (but not logging out!), parsing the status updates sent by the server and write
 them to a CSV file and scheduling the toggling on/off of known plugs through a Google Calendar scheduler.
 It's code resides in client.lua while also making use of ical.lua, dkjson.lua and two C extensions for Lua,
-namely alarm and openssl.
+namely alarm and openssl. zlib.so was added later on
 
 Libraries
 ---------
@@ -97,6 +116,9 @@ Just run wireshark in the directory you have the code with the -X parameter
 
 Where mydump.dump is a tcpdump/wireshark dump
 
+	wireshark -X:wifiplug2.lua mydump.dump
+
+For the second version
 
 Client application
 ------------------
@@ -125,9 +147,9 @@ or through the tar file
 
 * Configure it
 
-Copy the dist file 
+Copy the dist file
 
-	cp client_config.lua.dist file client_config.lua.
+	cp client_config.lua.dist client_config.lua.
 
 Edit client\_config.lua and adjust the settings to match your own, then run run.sh
 
