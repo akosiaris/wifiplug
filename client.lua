@@ -262,7 +262,7 @@ function ical_scheduler()
     if icaldata then
         gcal_events = ical.load(icaldata['data'])
     else
-        log.info('Google Calendar not populated yet. Please wait for first scheduler run')
+        log.debug('Google Calendar not populated yet. Please wait for first scheduler run')
         return nil
     end
     for k, event in pairs(gcal_events) do
@@ -273,7 +273,7 @@ end
 
 function scheduled_tasks()
     -- We should send an idle command scheduler_timer now and then.
-    log.info('Running scheduler')
+    log.debug('Running scheduler')
     if not icaldata then
         icaldata = { data=nil, date=0 }
     end
@@ -440,7 +440,7 @@ function v2_login()
         try(client:send(set_parameters))
         cmd, seq1, seq2, data = parse_v2_next_packet(client)
     else
-        log.info(string.format("error: we got command %d instead of 01", cmd))
+        log.error(string.format("error: we got command %d instead of 01", cmd))
         os.exit(1)
     end
     -- Now we actually login
@@ -493,7 +493,7 @@ function v3_getdevices(token_v3)
         log.error(err)
         return nil
     end
-    log.info('V3: Got device list for token: ' .. token_v3)
+    log.debug('V3: Got device list for token: ' .. token_v3)
     local reply = json.decode(sink)
     local devices = reply.deviceList
     local now = os.date('%Y-%m-%d %H:%M:%S')
@@ -518,7 +518,7 @@ function v3_getdevices(token_v3)
              plug.powerFactor,
              plug.electricEnergy,
         }
-        log.info('V3: Token: ' .. token_v3 .. ' Got status: ' .. toCSV(t))
+        log.debug('V3: Token: ' .. token_v3 .. ' Got status: ' .. toCSV(t))
         f:write(toCSV(t)..'\n')
         known_macs[id] = {
             state = states[tostring(plug.power[1].on)],
@@ -641,7 +641,7 @@ while true do
                                  0,
                                  0,
                                  }
-                            log.info('V2: Got status: ' .. toCSV(t))
+                            log.debug('V2: Got status: ' .. toCSV(t))
                             f:write(toCSV(t)..'\n')
                             known_macs[id] = {
                                 state = states[tostring(plug.power[1].on)],
@@ -653,7 +653,7 @@ while true do
                         end
                         f:close()
                 elseif cmd_v2 == 0xFB then
-                    log.info("V2: got ServerIdle, replying with IdleSucc")
+                    log.debug("V2: got ServerIdle, replying with IdleSucc")
                     local try = socket.newtry(function() client_v2:close() end)
                     local idlesucc = create_v2_packet(0xFC, seq1, seq2) -- 0x00 is connect_request command
                     try(client_v2:send(idlesucc))
@@ -702,7 +702,7 @@ while true do
                                  0,
                                  0,
                                  }
-                            log.info('Got status: ' .. toCSV(t))
+                            log.debug('Got status: ' .. toCSV(t))
                             f:write(toCSV(t)..'\n')
                             known_macs[mac.MacAddr] = {
                                 state = states[tostring(mac.Switcher)],
@@ -715,7 +715,7 @@ while true do
                     elseif detect_setstate(status) then
                         log.info('Detected an OK reply to a state change command')
                     elseif detect_idle(status) then
-                        log.info('Detected an OK reply to a IDLE command')
+                        log.debug('Detected an OK reply to a IDLE command')
                     else
                         log.warn('Unexpected message received:'..status)
                     end
