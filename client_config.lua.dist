@@ -24,5 +24,6 @@ local client_config = {
     port_v3 = 3081,
     happy_face_png = 'http://url-to-image',
     sad_face_png = 'https://url-to-image',
+    log_level = 'warn',
 }
 return client_config

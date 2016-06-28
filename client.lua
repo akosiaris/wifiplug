@@ -19,6 +19,7 @@ local username_v3 = config.username_v3
 local password_v3 = config.password_v3
 local server_v3 = config.server_v3
 local port_v3 = config.port_v3
+local log_level = config.log_level
 
 local known_macs = {}
 local scheduled_macs = {}
@@ -29,7 +30,10 @@ openssl = require('openssl')
 json = require('dkjson')
 https = require('ssl.https')
 ical = require('ical')
+log = require('log')
 require('alarm')
+
+log.level = log_level
 
 local socket = require('socket')
 local wifiplug_common = require('wifiplug_common')
@@ -44,7 +48,7 @@ function fetch_ical()
     local sink
     sink, err = https.request(gcal_url)
     if not sink then
-        print(err)
+        log.error(err)
     end
     return sink
 end
@@ -142,7 +146,7 @@ function synchronize_states()
     f:close()
     for mac, data in pairs(known_macs) do
         if data['status'] and not scheduled_macs[mac] and data['state'] == 'OFF' then
-            print('INFO: A non-scheduled MAC was found in OFF state: '.. mac .. ' Turning ON')
+            log.info('A non-scheduled MAC was found in OFF state: '.. mac .. ' Turning ON')
             if data['version'] == 1 then
                 send_setstate(mac, 'ON', session_key)
             elseif data['version'] == 2 then
@@ -156,7 +160,7 @@ function synchronize_states()
     for mac, data in pairs(scheduled_macs) do
         if known_macs[mac] and known_macs[mac]['state'] ~= data['state'] and known_macs[mac]['status'] then
             if known_macs[mac]['last_change'] < data['start'] then
-                print('INFO: A schedule for MAC: '..mac..' which was: ' .. known_macs[mac]['state'] .. ' to turn: '.. data['state'] ..' was found')
+                log.info('A schedule for MAC: '..mac..' which was: ' .. known_macs[mac]['state'] .. ' to turn: '.. data['state'] ..' was found')
                 if known_macs[mac]['version'] == 1 then
                     send_setstate(mac, data['state'], session_key)
                 elseif known_macs[mac]['version'] == 2 then
@@ -165,7 +169,7 @@ function synchronize_states()
                     send_setstate_v3(mac, data['state'], known_macs[mac]['token'])
                 end
             else
-                print('INFO: A possibly overriden by user action MAC: ' .. mac .. ' in state: ' .. known_macs[mac]['state'] .. ' scheduled for: ' .. scheduled_macs[mac]['state'] .. ' has been detected, doing nothing')
+                log.info('A possibly overriden by user action MAC: ' .. mac .. ' in state: ' .. known_macs[mac]['state'] .. ' scheduled for: ' .. scheduled_macs[mac]['state'] .. ' has been detected, doing nothing')
             end
         end
     end
@@ -258,7 +262,7 @@ function ical_scheduler()
     if icaldata then
         gcal_events = ical.load(icaldata['data'])
     else
-        print('INFO: Google Calendar not populated yet. Please wait for first scheduler run')
+        log.info('Google Calendar not populated yet. Please wait for first scheduler run')
         return nil
     end
     for k, event in pairs(gcal_events) do
@@ -269,7 +273,7 @@ end
 
 function scheduled_tasks()
     -- We should send an idle command scheduler_timer now and then.
-    print('INFO: Running scheduler')
+    log.info('Running scheduler')
     if not icaldata then
         icaldata = { data=nil, date=0 }
     end
@@ -396,7 +400,7 @@ end
 function parse_v2_next_packet(client)
     local answer, err = client:receive(7)
     if not answer then
-        print(string.format("ERROR while receiving packet for V2: %s", err))
+        log.error(string.format("error while receiving packet for V2: %s", err))
         os.exit(1)
     end
     local size = answer:sub(4,4):byte()
@@ -423,7 +427,7 @@ function v2_login()
     try(client:send(connect_request))
     cmd, seq1, seq2, data = parse_v2_next_packet(client)
     if cmd == 0x01 then
-        print("INFO V2: We got successful permit login")
+        log.info("V2: We got successful permit login")
         key_v2 = data.key
         data = {
           locale="en",
@@ -436,12 +440,12 @@ function v2_login()
         try(client:send(set_parameters))
         cmd, seq1, seq2, data = parse_v2_next_packet(client)
     else
-        print(string.format("Error: we got command %d instead of 01", cmd))
+        log.info(string.format("error: we got command %d instead of 01", cmd))
         os.exit(1)
     end
     -- Now we actually login
     if cmd == 0x74 then
-        print("INFO V2: We got succesful set parameters")
+        log.info("V2: We got succesful set parameters")
         data = {
             offset=0,
             appid=0,
@@ -452,14 +456,14 @@ function v2_login()
         try(client:send(login))
         cmd, seq1, seq2, data = parse_v2_next_packet(client)
     else
-        print(string.format("Error: we got command %d instead of 01", cmd))
+        log.error(string.format("error: we got command %d instead of 01", cmd))
         os.exit(1)
     end
     if cmd == 0x03 then
-        print("INFO V2: We succesfully logged in (finally...)")
+        log.info("V2: We succesfully logged in (finally...)")
         return client, seq1, seq2
     else
-        print(string.format("Error: we got command %d instead of 01", cmd))
+        log.error(string.format("error: we got command %d instead of 01", cmd))
         os.exit(1)
     end
     return nil
@@ -469,10 +473,10 @@ function v3_login(username_v3, password_v3)
     login_str = string.format('https://%s:%d/zcloud/api/user_login', server_v3, port_v3)
     local sink, err = https.request(login_str, string.format('username=%s&password=%s', username_v3, password_v3))
     if not sink then
-        print(err)
+        log.error(err)
         return nil
     end
-    print('INFO V3: Succesful login, got a token:' .. username_v3)
+    log.info('V3: Succesful login, got a token:' .. username_v3)
     res = json.decode(sink)
     return res.token
 end
@@ -486,10 +490,10 @@ function v3_getdevices(token_v3)
     get_devices_url = string.format('https://%s:%d/zcloud/api/device_query?token=%s', server_v3, port_v3, token_v3)
     local sink, err = https.request(get_devices_url)
     if not sink then
-        print(err)
+        log.error(err)
         return nil
     end
-    print('INFO V3: Got device list for token: ' .. token_v3)
+    log.info('V3: Got device list for token: ' .. token_v3)
     local reply = json.decode(sink)
     local devices = reply.deviceList
     local now = os.date('%Y-%m-%d %H:%M:%S')
@@ -514,7 +518,7 @@ function v3_getdevices(token_v3)
              plug.powerFactor,
              plug.electricEnergy,
         }
-        print('INFO V3: Token: ' .. token_v3 .. ' Got status: ' .. toCSV(t))
+        log.info('V3: Token: ' .. token_v3 .. ' Got status: ' .. toCSV(t))
         f:write(toCSV(t)..'\n')
         known_macs[id] = {
             state = states[tostring(plug.power[1].on)],
@@ -544,10 +548,10 @@ function send_setstate_v3(plug, state, token_v3)
     body = string.format('token=%s&device_id=00%s&on=%s', token_v3, plug, translate[state])
     local sink, err = https.request(control_plug_url, body)
     if not sink then
-        print(err)
+        log.error(err)
         return nil
     end
-    print('INFO V3: Sent plug control and got answer back for token: ' .. token_v3)
+    log.info('V3: Sent plug control and got answer back for token: ' .. token_v3)
     res = json.decode(sink)
     data = res.status
     local id = data.id:sub(3)
@@ -571,9 +575,9 @@ try(client:send(ecmd..'\n'))
 local answer = decrypt(client:receive('*l'), masterkey)
 session_key = extract_session_key(answer)
 if session_key then
-    print('INFO: Logged in succesfully, session_key is: '..string.tohex(session_key))
+    log.info('Logged in succesfully, session_key is: '..string.tohex(session_key))
 else
-    print('ERROR: Could not login succesfully, exiting')
+    log.error('Could not login succesfully, exiting')
     os.exit(1)
 end
 
@@ -609,7 +613,7 @@ scheduled_tasks()
 while true do
     rd, wr, err = socket.select({client, client_v2}, {}, 5)
     if err and not err == 'timeout' then
-        print("ERROR: while select() we got: " .. err)
+        log.error("while select() we got: " .. err)
     else
         for i,v in ipairs(rd) do
             if v == client_v2 then
@@ -637,7 +641,7 @@ while true do
                                  0,
                                  0,
                                  }
-                            print('INFO V2: Got status: ' .. toCSV(t))
+                            log.info('V2: Got status: ' .. toCSV(t))
                             f:write(toCSV(t)..'\n')
                             known_macs[id] = {
                                 state = states[tostring(plug.power[1].on)],
@@ -649,12 +653,12 @@ while true do
                         end
                         f:close()
                 elseif cmd_v2 == 0xFB then
-                    print("INFO V2: got ServerIdle, replying with IdleSucc")
+                    log.info("V2: got ServerIdle, replying with IdleSucc")
                     local try = socket.newtry(function() client_v2:close() end)
                     local idlesucc = create_v2_packet(0xFC, seq1, seq2) -- 0x00 is connect_request command
                     try(client_v2:send(idlesucc))
                 elseif cmd_v2 == 0x09 then
-                    print("INFO V2: got ServerControlResult for a mac")
+                    log.info("V2: got ServerControlResult for a mac")
                             local id = data.id:sub(3)
                             if known_macs[id] then
                                 known_macs[id].last_change = os.time()
@@ -663,12 +667,12 @@ while true do
                                 known_macs[id].obj = data
                             end
                 else
-                    print("ERROR V2: we expected ServerRespondAllDeviceList but got: " .. cmd_v2)
+                    log.error("V2: we expected ServerRespondAllDeviceList but got: " .. cmd_v2)
                 end
             elseif v == client then
                 status,err = client:receive('*l')
                 if not status then
-                    print('ERROR: ' .. err)
+                    log.error(err)
                     break
                 end
                 status = decrypt(status, session_key)
@@ -698,7 +702,7 @@ while true do
                                  0,
                                  0,
                                  }
-                            print('INFO: Got status: ' .. toCSV(t))
+                            log.info('Got status: ' .. toCSV(t))
                             f:write(toCSV(t)..'\n')
                             known_macs[mac.MacAddr] = {
                                 state = states[tostring(mac.Switcher)],
@@ -709,11 +713,11 @@ while true do
                         end
                         f:close()
                     elseif detect_setstate(status) then
-                        print('INFO: Detected an OK reply to a state change command')
+                        log.info('Detected an OK reply to a state change command')
                     elseif detect_idle(status) then
-                        print('INFO: Detected an OK reply to a IDLE command')
+                        log.info('Detected an OK reply to a IDLE command')
                     else
-                        print('WARNING: Unexpected message received:'..status)
+                        log.warn('Unexpected message received:'..status)
                     end
                 end
             end
