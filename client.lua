@@ -24,6 +24,9 @@ local log_level = config.log_level
 local known_macs = {}
 local scheduled_macs = {}
 local icaldata = nil
+
+local errorcounter = 0
+local max_errors = 100
 scheduler_timer = 30 --seconds
 
 openssl = require('openssl')
@@ -673,6 +676,10 @@ while true do
                 status,err = client:receive('*l')
                 if not status then
                     log.error(err)
+                    errorcounter = errorcounter + 1
+                    if errorcounter = maxerrors then
+                        return  -- We got too many errors, just quit
+                    end
                     break
                 end
                 status = decrypt(status, session_key)
