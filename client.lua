@@ -677,7 +677,7 @@ while true do
                 if not status then
                     log.error(err)
                     errorcounter = errorcounter + 1
-                    if errorcounter = maxerrors then
+                    if errorcounter >= maxerrors then
                         return  -- We got too many errors, just quit
                     end
                     break
